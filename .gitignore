@@ -1,0 +1,13 @@
+# 忽略設定檔與機密資訊
+setting.json
+
+# VSCode 設定
+.vscode/
+
+# Python 編譯產物
+__pycache__/
+*.pyc
+
+# 作業系統產物
+.DS_Store
+Thumbs.db
