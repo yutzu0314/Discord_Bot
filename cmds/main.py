@@ -23,4 +23,3 @@ class Main(Cog_Extension):
 async def setup(bot):
     print("📥 setup() 開始執行")
     await bot.add_cog(Main(bot))
-    print("✅ Cog 'Main' 已載入")

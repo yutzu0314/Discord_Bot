@@ -19,4 +19,4 @@ class Reacts(Cog_Extension):
 
 async def setup(bot):
     await bot.add_cog(Reacts(bot))
-    print("✅ Cog 'Reacts' 已載入")
+

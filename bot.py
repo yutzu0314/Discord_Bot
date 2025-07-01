@@ -35,7 +35,7 @@ async def on_message(message):
         return
 
     if message.content.startswith('$hello'):
-        await message.channel.send('Hello!大屁股楊景棠')
+        await message.channel.send('Hello!')
 
     await bot.process_commands(message)
 
