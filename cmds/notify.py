@@ -57,7 +57,6 @@ class Notify(Cog_Extension):
         await self.run_live_detection(jdata["stream_url"], send_violation)
         await channel.send("📴 偵測結束。")
 
-    # ✅ 包裝非同步偵測流程
     async def run_live_detection(self, video_path, send_fn):
         await detect_video_live(video_path, send_fn, 10)
 
