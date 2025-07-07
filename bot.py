@@ -41,6 +41,17 @@ async def on_command_error(ctx, error):
     else:
         raise error  # 其他錯誤照原本拋出（方便除錯）
 
+@bot.event
+async def on_command_error(ctx, error):
+    print(f"Command error: {error}")
+
+@bot.event
+async def on_error(event, *args, **kwargs):
+    import traceback
+    traceback.print_exc()
+
+
+
 # No Category
 @bot.command()
 @commands.has_permissions(administrator=True) #指令只能給管理員用

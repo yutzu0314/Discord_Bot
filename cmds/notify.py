@@ -43,7 +43,6 @@ class RoadSelect(discord.ui.Select):
                 f"📷 路段：{selected_road}\n"
                 f"🕒 時間：{now_time}"
             )
-
             await channel.send(msg, file=discord.File(img_path))
 
             for _ in range(5):
@@ -56,8 +55,12 @@ class RoadSelect(discord.ui.Select):
         await interaction.response.send_message(
             f"📡 開始偵測 `{selected_road}` 路段...", view=view, ephemeral=True
         )
-        await self.parent_view.cog.run_live_detection(stream_url, send_violation, view)
-        await channel.send("✅ 偵測結束。")
+
+        async def detection_task():
+            await self.parent_view.cog.run_live_detection(stream_url, send_violation, view)
+            await channel.send("✅ 偵測結束。")
+
+        view.task = asyncio.create_task(detection_task())
 
 # 路段選單 View
 class RoadSelectView(discord.ui.View):
@@ -83,10 +86,16 @@ class StopButton(discord.ui.Button):
         if interaction.user.id != self.parent_view.owner_id:
             await interaction.response.send_message("❌ 你無權按下這個按鈕。", ephemeral=True)
             return
+
+        # 強制中止任務
+        task: asyncio.Task = getattr(self.parent_view, "task", None)
+        if task and not task.done():
+            task.cancel()
+
         self.parent_view.set_stop_state(True)
         self.disabled = True
         await interaction.response.edit_message(view=self.parent_view)
-        await interaction.followup.send("🛑 已中止偵測！", ephemeral=True)
+        await interaction.followup.send("強制中止偵測！", ephemeral=True)
 
 # 停止偵測按鈕 View
 class StopDetectionView(discord.ui.View):
@@ -95,6 +104,7 @@ class StopDetectionView(discord.ui.View):
         self.cog = cog
         self.stop_flag = False
         self.owner_id = owner_id
+        self.task = None
         self.add_item(StopButton(self))
 
     def set_stop_state(self, value: bool):
@@ -119,7 +129,7 @@ class Notify(Cog_Extension):
             return
 
         view = RoadSelectView(road_names, ctx, self)
-        await ctx.send("請選擇要進行偵測的路段：", view=view, ephemeral=True)  # 只自己看得見
+        await ctx.send("請選擇要進行偵測的路段：", view=view, ephemeral=True)
 
     async def run_live_detection(self, video_path, send_fn, view: StopDetectionView, interval=10):
         async def on_error(error_msg: str):
@@ -131,7 +141,8 @@ class Notify(Cog_Extension):
                 await send_fn(img_path)
                 if view.get_stop_state():
                     break
-                await send_fn(img_path)
+        except asyncio.CancelledError:
+            pass  # 被取消不算錯誤
         except Exception as e:
             channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
             await channel.send(f"🚫 偵測中斷錯誤：{str(e)}")
