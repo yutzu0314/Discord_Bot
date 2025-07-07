@@ -19,12 +19,13 @@ bot = commands.Bot(command_prefix='[', intents=intents)
 async def on_ready():
     print(">> Bot is online <<")
 
-@bot.event #成員變動
+# 成員變動
+@bot.event
 async def on_member_join(member):
     channel = bot.get_channel(int(jdata['成員變更_channel']))
     await channel.send(f'{member} 加入伺服器！🎉')
 
-@bot.event #成員變動
+@bot.event
 async def on_member_remove(member):
     channel = bot.get_channel(int(jdata['成員變更_channel']))
     await channel.send(f'{member} 離開了伺服器... 😢')
