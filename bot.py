@@ -31,27 +31,31 @@ async def on_member_remove(member):
     await channel.send(f'{member} 離開了伺服器... 😢')
 
 @bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    if message.content.startswith('$hello'):
-        await message.channel.send('Hello!')
-
-    await bot.process_commands(message)
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("🚫 你沒有權限使用這個指令！")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("⚠️ 指令參數不完整，請重新輸入。")
+    elif isinstance(error, commands.CommandNotFound):
+        await ctx.send("❓ 找不到這個指令，請輸入 `[help` 查看可用指令。")
+    else:
+        raise error  # 其他錯誤照原本拋出（方便除錯）
 
 # No Category
 @bot.command()
+@commands.has_permissions(administrator=True) #指令只能給管理員用
 async def load(ctx, extension):
     await bot.load_extension(f'cmds.{extension}')
     await ctx.send(f'Loaded {extension} done.')
 
 @bot.command()
+@commands.has_permissions(administrator=True)
 async def unload(ctx, extension):
     await bot.unload_extension(f'cmds.{extension}')
     await ctx.send(f'Unloaded {extension} done.')
 
 @bot.command()
+@commands.has_permissions(administrator=True)
 async def reload(ctx, extension):
     await bot.reload_extension(f'cmds.{extension}')
     await ctx.send(f'Reloaded {extension} done.')
