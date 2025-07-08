@@ -1,0 +1,7 @@
+discord.py==2.5.2
+aiohttp
+ultralytics
+opencv-python
+numpy
+Pillow
+
