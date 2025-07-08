@@ -95,7 +95,7 @@ class StopButton(discord.ui.Button):
         self.parent_view.set_stop_state(True)
         self.disabled = True
         await interaction.response.edit_message(view=self.parent_view)
-        await interaction.followup.send("強制中止偵測！", ephemeral=True)
+        await interaction.followup.send("中止偵測！", ephemeral=True)
 
 # 停止偵測按鈕 View
 class StopDetectionView(discord.ui.View):

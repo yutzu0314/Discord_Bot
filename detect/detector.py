@@ -37,7 +37,9 @@ async def detect_video_live(video_path: str, on_error=None, interval: int = 10):
             results = model.predict(frame, save=False, verbose=False)
             boxes = results[0].boxes
 
-            if boxes and len(boxes.cls) > 0:
+            # 過濾出分數大於 0.5 的框
+            high_conf_indices = (boxes.conf > 0.5).nonzero().flatten()
+            if len(high_conf_indices) > 0:
                 # 建立臨時圖片檔案
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
                     img_path = tmp_file.name
