@@ -19,6 +19,18 @@ bot = commands.Bot(command_prefix='[', intents=intents)
 async def on_ready():
     print(">> Bot is online <<")
 
+    # 心跳機制
+    async def heartbeat():
+        try:
+            channel = bot.get_channel(int(jdata['心跳_channel']))
+            while True:
+                await channel.send("もしもし ~")
+                await asyncio.sleep(3600)
+        except Exception as e:
+            print(f"❌ 心跳錯誤: {e}")
+
+    bot.loop.create_task(heartbeat())
+
 # 成員變動
 @bot.event
 async def on_member_join(member):
