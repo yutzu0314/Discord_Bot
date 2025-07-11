@@ -40,11 +40,15 @@ async def detect_video_live(video_path: str, on_error=None, interval: int = 10):
             # 過濾出分數大於 0.5 的框
             high_conf_indices = (boxes.conf > 0.5).nonzero().flatten()
             if len(high_conf_indices) > 0:
+                # 提取類別名稱
+                class_ids = boxes.cls[high_conf_indices].int().tolist()
+                class_names = list({model.names[class_id] for class_id in class_ids})
+
                 # 建立臨時圖片檔案
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
                     img_path = tmp_file.name
                     results[0].save(filename=img_path)
-                    yield img_path  # 🔄 回傳給上層處理者
+                    yield img_path, class_names  # 🔄 回傳給上層處理者
 
     except asyncio.CancelledError:
         print("🔴 偵測任務被強制取消")

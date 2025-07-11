@@ -1,3 +1,4 @@
+from pydoc import classname
 from discord.ext import commands
 from core.classes import Cog_Extension
 from detect.detector import detect_video_live
@@ -36,10 +37,13 @@ class RoadSelect(discord.ui.Select):
 
         channel = interaction.client.get_channel(int(jdata["違規車輛_channel"]))
 
-        async def send_violation(img_path):
+        async def send_violation(img_path, class_names):
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            vehicle_str = ", ".join(class_names) if class_names else "unknown"
+
             msg = (
                 f"🚨 偵測到違規車輛\n"
+                f"🛵 類別：{vehicle_str}\n"
                 f"📷 路段：{selected_road}\n"
                 f"🕒 時間：{now_time}"
             )
@@ -137,8 +141,8 @@ class Notify(Cog_Extension):
             await channel.send(f"⚠️ 錯誤：{error_msg}")
 
         try:
-            async for img_path in detect_video_live(video_path, on_error, interval):
-                await send_fn(img_path)
+            async for img_path, class_names in detect_video_live(video_path, on_error, interval):
+                await send_fn(img_path, class_names)
                 if view.get_stop_state():
                     break
         except asyncio.CancelledError:
