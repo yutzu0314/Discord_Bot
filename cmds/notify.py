@@ -2,12 +2,13 @@ from pydoc import classname
 from discord.ext import commands
 from core.classes import Cog_Extension
 from detect.detector import detect_video_live
-import discord
+from detect.github_sync import update_violation_to_github
 import os
 from datetime import datetime
 import json
 import tempfile
 import asyncio
+import discord
 
 with open("setting.json", "r", encoding="utf-8") as f:
     jdata = json.load(f)
@@ -47,8 +48,20 @@ class RoadSelect(discord.ui.Select):
                 f"📷 路段：{selected_road}\n"
                 f"🕒 時間：{now_time}"
             )
-            await channel.send(msg, file=discord.File(img_path))
+            # 傳送訊息並取得訊息物件
+            sent_msg = await channel.send(msg, file=discord.File(img_path))
 
+            # 從 Discord 訊息附件取得圖片網址
+            image_url = sent_msg.attachments[0].url
+
+            # 呼叫 GitHub 更新函式
+            try:
+                for vehicle in class_names:
+                    update_violation_to_github(selected_road, vehicle, image_url)
+            except Exception as e:
+                print(f"⚠️ GitHub 更新失敗：{e}")
+
+            # 刪除本地圖片釋放空間
             for _ in range(5):
                 try:
                     os.remove(img_path)

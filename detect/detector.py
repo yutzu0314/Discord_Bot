@@ -1,7 +1,7 @@
 from ultralytics import YOLO
+from datetime import datetime
 import cv2
 import os
-from datetime import datetime
 import json
 import tempfile
 import asyncio
