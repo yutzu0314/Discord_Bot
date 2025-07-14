@@ -1,19 +1,20 @@
-from pydoc import classname
 from discord.ext import commands
 from core.classes import Cog_Extension
 from detect.detector import detect_video_live
-from detect.github_sync import update_violation_to_github
 import os
 from datetime import datetime
 import json
-import tempfile
 import asyncio
 import discord
 
 with open("setting.json", "r", encoding="utf-8") as f:
     jdata = json.load(f)
 
-# 選單元件：路段選擇
+
+# ============================
+# UI 元件：路段選單
+# ============================
+
 class RoadSelect(discord.ui.Select):
     def __init__(self, road_names, ctx, parent_view):
         self.ctx = ctx
@@ -26,7 +27,7 @@ class RoadSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.parent_view.owner_id:
-            await interaction.response.send_message("❌ 你不是這個選單的使用者，無法操作。")
+            await interaction.response.send_message("❌ 你不是這個選單的使用者，無法操作。", ephemeral=True)
             return
 
         selected_road = self.values[0]
@@ -35,6 +36,8 @@ class RoadSelect(discord.ui.Select):
 
         view = StopDetectionView(self.parent_view.cog, interaction.user.id)
         view.set_stop_state(False)
+        view.violations = []
+        view.flush_task = None
 
         channel = interaction.client.get_channel(int(jdata["違規車輛_channel"]))
 
@@ -48,20 +51,22 @@ class RoadSelect(discord.ui.Select):
                 f"📷 路段：{selected_road}\n"
                 f"🕒 時間：{now_time}"
             )
-            # 傳送訊息並取得訊息物件
             sent_msg = await channel.send(msg, file=discord.File(img_path))
-
-            # 從 Discord 訊息附件取得圖片網址
             image_url = sent_msg.attachments[0].url
 
-            # 呼叫 GitHub 更新函式
-            try:
-                for vehicle in class_names:
-                    update_violation_to_github(selected_road, vehicle, image_url)
-            except Exception as e:
-                print(f"⚠️ GitHub 更新失敗：{e}")
+            for vehicle in class_names:
+                view.violations.append({
+                    "road_name": selected_road,
+                    "vehicle": vehicle,
+                    "image_url": image_url,
+                    "time": now_time
+                })
 
-            # 刪除本地圖片釋放空間
+            # 啟動 5 分鐘後的批次更新
+            if view.flush_task is None or view.flush_task.done():
+                view.flush_task = asyncio.create_task(view.cog.flush_violations_later(view))
+
+            # 刪除本地檔案
             for _ in range(5):
                 try:
                     os.remove(img_path)
@@ -75,11 +80,16 @@ class RoadSelect(discord.ui.Select):
 
         async def detection_task():
             await self.parent_view.cog.run_live_detection(stream_url, send_violation, view)
+
+            # 最後刷新一次
+            if view.violations:
+                await view.cog.flush_violations_later(view, delay=0)
+
             await channel.send("✅ 偵測結束。")
 
         view.task = asyncio.create_task(detection_task())
 
-# 路段選單 View
+
 class RoadSelectView(discord.ui.View):
     def __init__(self, road_names, ctx, cog):
         super().__init__(timeout=60)
@@ -93,7 +103,11 @@ class RoadSelectView(discord.ui.View):
             return False
         return True
 
+
+# ============================
 # 停止偵測按鈕
+# ============================
+
 class StopButton(discord.ui.Button):
     def __init__(self, parent_view):
         super().__init__(label="中止偵測", style=discord.ButtonStyle.danger)
@@ -104,7 +118,6 @@ class StopButton(discord.ui.Button):
             await interaction.response.send_message("❌ 你無權按下這個按鈕。", ephemeral=True)
             return
 
-        # 強制中止任務
         task: asyncio.Task = getattr(self.parent_view, "task", None)
         if task and not task.done():
             task.cancel()
@@ -114,7 +127,7 @@ class StopButton(discord.ui.Button):
         await interaction.response.edit_message(view=self.parent_view)
         await interaction.followup.send("中止偵測！")
 
-# 停止偵測按鈕 View
+
 class StopDetectionView(discord.ui.View):
     def __init__(self, cog, owner_id):
         super().__init__(timeout=None)
@@ -122,6 +135,8 @@ class StopDetectionView(discord.ui.View):
         self.stop_flag = False
         self.owner_id = owner_id
         self.task = None
+        self.violations = []
+        self.flush_task = None
         self.add_item(StopButton(self))
 
     def set_stop_state(self, value: bool):
@@ -135,6 +150,11 @@ class StopDetectionView(discord.ui.View):
             await interaction.response.send_message("❌ 你無權按下這個按鈕。", ephemeral=True)
             return False
         return True
+
+
+# ============================
+# Notify Cog
+# ============================
 
 class Notify(Cog_Extension):
 
@@ -159,10 +179,23 @@ class Notify(Cog_Extension):
                 if view.get_stop_state():
                     break
         except asyncio.CancelledError:
-            pass  # 被取消不算錯誤
+            pass
         except Exception as e:
             channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
             await channel.send(f"🚫 偵測中斷錯誤：{str(e)}")
+
+    async def flush_violations_later(self, view, delay=300):
+        await asyncio.sleep(delay)
+
+        if view.violations:
+            from detect.github_sync import update_violation_to_github_bulk
+            update_violation_to_github_bulk(view.violations)
+            view.violations.clear()
+            #channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            #await channel.send("✅ 自動更新 GitHub 完成")
+
+        view.flush_task = None
+
 
 async def setup(bot):
     await bot.add_cog(Notify(bot))
