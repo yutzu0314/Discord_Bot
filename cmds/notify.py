@@ -26,7 +26,7 @@ class RoadSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.parent_view.owner_id:
-            await interaction.response.send_message("❌ 你不是這個選單的使用者，無法操作。", ephemeral=True)
+            await interaction.response.send_message("❌ 你不是這個選單的使用者，無法操作。")
             return
 
         selected_road = self.values[0]
@@ -70,7 +70,7 @@ class RoadSelect(discord.ui.Select):
                     await asyncio.sleep(0.5)
 
         await interaction.response.send_message(
-            f"📡 開始偵測 `{selected_road}` 路段...", view=view, ephemeral=True
+            f"📡 開始偵測 `{selected_road}` 路段...", view=view
         )
 
         async def detection_task():
@@ -112,7 +112,7 @@ class StopButton(discord.ui.Button):
         self.parent_view.set_stop_state(True)
         self.disabled = True
         await interaction.response.edit_message(view=self.parent_view)
-        await interaction.followup.send("中止偵測！", ephemeral=True)
+        await interaction.followup.send("中止偵測！")
 
 # 停止偵測按鈕 View
 class StopDetectionView(discord.ui.View):
@@ -146,7 +146,7 @@ class Notify(Cog_Extension):
             return
 
         view = RoadSelectView(road_names, ctx, self)
-        await ctx.send("請選擇要進行偵測的路段：", view=view, ephemeral=True)
+        await ctx.send("請選擇要進行偵測的路段：", view=view)
 
     async def run_live_detection(self, video_path, send_fn, view: StopDetectionView, interval=10):
         async def on_error(error_msg: str):
