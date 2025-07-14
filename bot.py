@@ -54,10 +54,6 @@ async def on_command_error(ctx, error):
         raise error  # 其他錯誤照原本拋出（方便除錯）
 
 @bot.event
-async def on_command_error(ctx, error):
-    print(f"Command error: {error}")
-
-@bot.event
 async def on_error(event, *args, **kwargs):
     import traceback
     traceback.print_exc()
