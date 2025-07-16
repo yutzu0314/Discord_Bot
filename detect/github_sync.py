@@ -10,7 +10,7 @@ with open("setting.json", "r", encoding="utf-8") as f:
 GITHUB_TOKEN = jdata["GITHUB_TOKEN"]
 
 REPO_OWNER = "yijean333"
-REPO_NAME = "flask_backend"
+REPO_NAME = "backend"
 FILE_PATH = "violations.json"
 
 API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
