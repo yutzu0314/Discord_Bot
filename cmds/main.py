@@ -6,8 +6,8 @@ from core.classes import Cog_Extension
 
 # ✅ 設定 intents 並開啟 members 權限
 intents = discord.Intents.default()
-intents.members = True  # <<< 必須開啟這個
-intents.message_content = True  # 若還有文字指令也建議開啟
+intents.members = True
+intents.message_content = True
 
 class Main(Cog_Extension):
 

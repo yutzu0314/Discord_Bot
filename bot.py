@@ -15,33 +15,12 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='[', intents=intents)
 
+# --- Bot 啟動 ---
 @bot.event
 async def on_ready():
     print(">> Bot is online <<")
 
-    # 心跳機制
-    async def heartbeat():
-        try:
-            channel = bot.get_channel(int(jdata['心跳_channel']))
-            while True:
-                await channel.send("もしもし ~")
-                await asyncio.sleep(3600)
-        except Exception as e:
-            print(f"❌ 心跳錯誤: {e}")
-
-    bot.loop.create_task(heartbeat())
-
-# 成員變動
-@bot.event
-async def on_member_join(member):
-    channel = bot.get_channel(int(jdata['成員變更_channel']))
-    await channel.send(f'{member} 加入伺服器！🎉')
-
-@bot.event
-async def on_member_remove(member):
-    channel = bot.get_channel(int(jdata['成員變更_channel']))
-    await channel.send(f'{member} 離開了伺服器... 😢')
-
+# --- 指令錯誤處理 ---
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
@@ -53,6 +32,7 @@ async def on_command_error(ctx, error):
     else:
         raise error  # 其他錯誤照原本拋出（方便除錯）
 
+# --- 全域錯誤攔截 ---
 @bot.event
 async def on_error(event, *args, **kwargs):
     import traceback
@@ -60,9 +40,9 @@ async def on_error(event, *args, **kwargs):
 
 
 
-# No Category
+# --- 管理指令 (只限管理員) ---
 @bot.command()
-@commands.has_permissions(administrator=True) #指令只能給管理員用
+@commands.has_permissions(administrator=True)
 async def load(ctx, extension):
     await bot.load_extension(f'cmds.{extension}')
     await ctx.send(f'Loaded {extension} done.')
@@ -79,7 +59,7 @@ async def reload(ctx, extension):
     await bot.reload_extension(f'cmds.{extension}')
     await ctx.send(f'Reloaded {extension} done.')
 
-# 自動載入 cmds 內的 Cogs
+# --- 自動載入 cmds 內的 Cogs ---
 async def main():
     for filename in os.listdir('./cmds'):
         if filename.endswith('.py') and filename != '__init__.py':
