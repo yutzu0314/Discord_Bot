@@ -5,6 +5,8 @@ import json
 import os
 from discord.ext import commands
 
+from cmds.report import ApplyView, ManageView
+
 with open('setting.json', 'r', encoding='utf8') as jfile:
     jdata = json.load(jfile)
 
@@ -19,6 +21,10 @@ bot = commands.Bot(command_prefix='[', intents=intents)
 @bot.event
 async def on_ready():
     print(">> Bot is online <<")
+
+    # 重新註冊所有會出現在訊息上的 View
+    bot.add_view(ManageView())       # 審核按鈕
+    bot.add_view(ApplyView(bot))     # 申請入口按鈕
 
 # --- 指令錯誤處理 ---
 @bot.event

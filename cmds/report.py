@@ -1,4 +1,5 @@
 import json
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -7,8 +8,21 @@ from core.classes import Cog_Extension
 with open('setting.json', 'r', encoding='utf8') as jfile:
     jdata = json.load(jfile)
 
-ADMIN_CHANNEL_ID = int(jdata["道路管理_channel"])
-APPLY_CHANNEL_ID = int(jdata["道路申請_channel"])
+ADMIN_CHANNEL_ID  = int(jdata["道路管理_channel"])
+ENTRY_CHANNEL_ID  = int(jdata["道路申請_channel"])  # ← 申請入口要貼在這
+NOTIFY_CHANNEL_ID = int(jdata["通知_channel"])       # ← 審核結果發這裡
+
+STORE = "reports.json"
+
+def load_store():
+    if not os.path.exists(STORE):
+        return {}
+    with open(STORE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_store(data: dict):
+    with open(STORE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 # ========== Modal ==========
 class ReportModal(discord.ui.Modal, title="回報違規路段"):
@@ -32,52 +46,73 @@ class ReportModal(discord.ui.Modal, title="回報違規路段"):
         embed.timestamp = discord.utils.utcnow()
 
         # 發送到管理員頻道
-        view = ManageView(reporter_id=interaction.user.id)
+        view = ManageView()  # persistent view
         channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
         if channel:
-            await channel.send(embed=embed, view=view)
+            admin_msg = await channel.send(embed=embed, view=view)
+
+            data = load_store()
+            data[str(admin_msg.id)] = {
+                "reporter_id": interaction.user.id
+                # 若將來每則想通知到不同頻道，再存 notify_channel_id
+            }
+            save_store(data)
+
 
 
 # ========== 管理員操作 UI ==========
 class ManageView(discord.ui.View):
-    def __init__(self, reporter_id: int):
-        super().__init__(timeout=None)
-        self.reporter_id = reporter_id
+    def __init__(self):
+        super().__init__(timeout=None)  # persistent view 不帶狀態
 
-    async def notify_user(self, bot, result: str):
-        """在道路申請頻道通知申請者"""
-        channel = bot.get_channel(APPLY_CHANNEL_ID)
-        if channel:
-            if({result} == "核准"):
-                await channel.send(f"<@{self.reporter_id}> 你的申請已被 **{result}** ✅")
-            elif({result} == "拒絕"):
-                await channel.send(f"<@{self.reporter_id}> 你的申請已被 **{result}** ❌")
+    async def _notify(self, interaction: discord.Interaction, result_text: str):
+        data = load_store()
+        key = str(interaction.message.id)
+        info = data.get(key)
+        if not info:
+            return  # 找不到對應就略過（可能已被清掉）
+
+        reporter_id = info.get("reporter_id")
+
+        channel = interaction.client.get_channel(NOTIFY_CHANNEL_ID)  # ← 固定通知頻道
+        if channel and reporter_id:
+            # 發通知到「申請者來源頻道」
+            if result_text == "核准":
+                await channel.send(f"<@{reporter_id}> 你的申請已被 **{result_text}** ✅")
+            elif result_text == "拒絕":
+                await channel.send(f"<@{reporter_id}> 你的申請已被 **{result_text}** ❌")
             else:
-                await channel.send(f"<@{self.reporter_id}> 你的申請需要 **{result}** ✏️")
+                await channel.send(f"<@{reporter_id}> 你的申請需要 **{result_text}** ✏️")
 
-    @discord.ui.button(label="Approve", style=discord.ButtonStyle.green)
+        # 清理這筆紀錄，避免檔案無限成長
+        if key in data:
+            del data[key]
+            save_store(data)
+
+    @discord.ui.button(label="Approve", style=discord.ButtonStyle.green, custom_id="report_approve")
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
             content=f"✅ 已核准（由 {interaction.user} 操作）",
             view=None
         )
-        await self.notify_user(interaction.client, "核准")
+        await self._notify(interaction, "核准")
 
-    @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
+    @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, custom_id="report_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
             content=f"❌ 已拒絕（由 {interaction.user} 操作）",
             view=None
         )
-        await self.notify_user(interaction.client, "拒絕")
+        await self._notify(interaction, "拒絕")
 
-    @discord.ui.button(label="Request Edit", style=discord.ButtonStyle.gray)
+    @discord.ui.button(label="Request Edit", style=discord.ButtonStyle.gray, custom_id="report_request_edit")
     async def request_edit(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
             content=f"✏️ 請回報者補充/修改（由 {interaction.user} 操作）",
             view=None
         )
-        await self.notify_user(interaction.client, "請補充/修改")
+        await self._notify(interaction, "補充/修改")
+
 
 
 # ========== 使用者入口按鈕 ==========
@@ -86,10 +121,11 @@ class ApplyView(discord.ui.View):
         super().__init__(timeout=None)
         self.bot = bot
 
-    @discord.ui.button(label="📋 填寫道路申請", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="📋 填寫道路申請", style=discord.ButtonStyle.primary, custom_id="report_apply")
     async def apply(self, interaction: discord.Interaction, button: discord.ui.Button):
         modal = ReportModal(self.bot, interaction.user)
         await interaction.response.send_modal(modal)
+
 
 
 # ========== Cog ==========
@@ -100,7 +136,7 @@ class Report(commands.Cog):
     @commands.command(name="report")
     @commands.has_permissions(administrator=True)
     async def report(self, ctx: commands.Context):
-        if ctx.channel.id != APPLY_CHANNEL_ID:
+        if ctx.channel.id != ENTRY_CHANNEL_ID:
             await ctx.send("⚠️ 這個指令只能在指定的 #違規道路申請 頻道使用！", delete_after=5)
             return
 
