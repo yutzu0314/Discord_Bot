@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # 讓 .env 生效（如果你沒在別處做過）
+
 import asyncio
 import random
 import discord

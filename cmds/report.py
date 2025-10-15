@@ -4,6 +4,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from core.classes import Cog_Extension
+from db import aexec
+from services.reports import save_report
 
 with open('setting.json', 'r', encoding='utf8') as jfile:
     jdata = json.load(jfile)
@@ -51,12 +53,25 @@ class ReportModal(discord.ui.Modal, title="回報違規路段"):
         if channel:
             admin_msg = await channel.send(embed=embed, view=view)
 
+            # 存檔到 JSON（原本流程）
             data = load_store()
             data[str(admin_msg.id)] = {
                 "reporter_id": interaction.user.id
-                # 若將來每則想通知到不同頻道，再存 notify_channel_id
             }
             save_store(data)
+
+            # 👉 新增：存到 MySQL
+            await save_report(
+                guild_id=interaction.guild.id if interaction.guild else None,
+                channel_id=channel.id,
+                message_id=admin_msg.id,
+                reporter_id=interaction.user.id,
+                road_name=self.location.value,
+                image_url=self.camera.value,   # 你這邊填「監視器網址」欄位
+                note=self.desc.value,
+                category=None,                 # 目前沒有分類欄位，可以先傳 None
+                status='pending'
+            )
 
 
 
@@ -97,6 +112,12 @@ class ManageView(discord.ui.View):
         )
         await self._notify(interaction, "核准")
 
+        # update SQL
+        await aexec("""
+            UPDATE reports SET atatus='approved'
+            WHERE message_id = :mid
+            """, {"mid": interaction.message.id})
+
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, custom_id="report_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
@@ -105,6 +126,12 @@ class ManageView(discord.ui.View):
         )
         await self._notify(interaction, "拒絕")
 
+        # update SQL
+        await aexec("""
+            UPDATE reports SET atatus='rejected'
+            WHERE message_id = :mid
+            """, {"mid": interaction.message.id})
+
     @discord.ui.button(label="Request Edit", style=discord.ButtonStyle.gray, custom_id="report_request_edit")
     async def request_edit(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
@@ -112,6 +139,12 @@ class ManageView(discord.ui.View):
             view=None
         )
         await self._notify(interaction, "補充/修改")
+
+        # update SQL
+        await aexec("""
+            UPDATE reports SET atatus='pending'
+            WHERE message_id = :mid
+            """, {"mid": interaction.message.id})
 
 
 

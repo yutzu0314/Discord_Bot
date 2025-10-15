@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import asyncio
 import discord
+from services.reports import save_report
 
 with open("setting.json", "r", encoding="utf-8") as f:
     jdata = json.load(f)
@@ -53,6 +54,35 @@ class RoadSelect(discord.ui.Select):
             )
             sent_msg = await channel.send(msg, file=discord.File(img_path))
             image_url = sent_msg.attachments[0].url
+
+            # --- 寫進 MySQL：一筆偵測 → 一筆 reports 記錄（多類別就各寫一筆） ---
+            if class_names:
+                for vehicle in class_names:
+                    await save_report(
+                        guild_id=interaction.guild.id if interaction.guild else None,
+                        channel_id=channel.id,
+                        message_id=sent_msg.id,          # 對應這則 Discord 訊息
+                        reporter_id=None,                 # 自動偵測，沒有使用者就留 None
+                        road_name=selected_road,
+                        latitude=None, longitude=None,    # 有座標再填
+                        image_url=image_url,
+                        category=vehicle,                 # 逐一寫入偵測到的類別
+                        note="stream detection",
+                        status="pending"
+                    )
+            else:
+                # 沒辨識出類別也存一筆，方便統計
+                await save_report(
+                    guild_id=interaction.guild.id if interaction.guild else None,
+                    channel_id=channel.id,
+                    message_id=sent_msg.id,
+                    reporter_id=None,
+                    road_name=selected_road,
+                    image_url=image_url,
+                    category="unknown",
+                    note="stream detection",
+                    status="pending"
+                )
 
             for vehicle in class_names:
                 view.violations.append({
