@@ -11,6 +11,14 @@ from services.reports import save_report
 with open("setting.json", "r", encoding="utf-8") as f:
     jdata = json.load(f)
 
+def get_roads():
+    return jdata.get("roads", [])
+
+def get_road_by_name(name: str):
+    for r in get_roads():
+        if r.get("name") == name:
+            return r
+    return None
 
 # ============================
 # UI 元件：路段選單
@@ -32,8 +40,13 @@ class RoadSelect(discord.ui.Select):
             return
 
         selected_road = self.values[0]
-        index = jdata["road_name"].index(selected_road)
-        stream_url = jdata["stream_url"][index]
+        road = get_road_by_name(selected_road)
+        if not road:
+            await interaction.response.send_message("❌ 找不到路段設定。", ephemeral=True)
+            return
+        stream_url = road.get("stream_url")
+        lat = road.get("lat")
+        lng = road.get("lng")
 
         view = StopDetectionView(self.parent_view.cog, interaction.user.id)
         view.set_stop_state(False)
@@ -55,16 +68,16 @@ class RoadSelect(discord.ui.Select):
             sent_msg = await channel.send(msg, file=discord.File(img_path))
             image_url = sent_msg.attachments[0].url
 
-            # --- 寫進 MySQL：一筆偵測 → 一筆 reports 記錄（多類別就各寫一筆） ---
+            # 寫進 MySQL
             if class_names:
                 for vehicle in class_names:
                     await save_report(
                         guild_id=interaction.guild.id if interaction.guild else None,
                         channel_id=channel.id,
                         message_id=sent_msg.id,          # 對應這則 Discord 訊息
-                        reporter_id=None,                 # 自動偵測，沒有使用者就留 None
+                        reporter_id=view.owner_id,                 # 自動偵測，沒有使用者就留 None
                         road_name=selected_road,
-                        latitude=None, longitude=None,    # 有座標再填
+                        latitude=lat, longitude=lng,    # 座標
                         image_url=image_url,
                         category=vehicle,                 # 逐一寫入偵測到的類別
                         note="stream detection",
@@ -76,8 +89,9 @@ class RoadSelect(discord.ui.Select):
                     guild_id=interaction.guild.id if interaction.guild else None,
                     channel_id=channel.id,
                     message_id=sent_msg.id,
-                    reporter_id=None,
+                    reporter_id=view.owner_id,
                     road_name=selected_road,
+                    latitude=lat, longitude=lng, 
                     image_url=image_url,
                     category="unknown",
                     note="stream detection",
@@ -190,7 +204,7 @@ class Notify(Cog_Extension):
 
     @commands.command()
     async def 偵測串流(self, ctx):
-        road_names = jdata.get("road_name", [])
+        road_names = [r.get("name") for r in get_roads()]
         if not road_names:
             await ctx.send("❌ 未找到任何可用路段設定。")
             return
