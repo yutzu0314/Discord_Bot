@@ -5,11 +5,32 @@ import os
 import json
 import tempfile
 import asyncio
+import torch
 
 with open("setting.json", "r", encoding="utf-8") as f:
     jdata = json.load(f)
 
-model = YOLO(jdata["yolo_model"])
+# ---------- 裝置選擇：優先嘗試 CUDA，用不了就退回 CPU ----------
+DEVICE = "cpu"
+try:
+    if torch.cuda.is_available():
+        # 先載入模型，再試著搬到 CUDA
+        _tmp_model = YOLO(jdata["yolo_model"])
+        _tmp_model.to("cuda")  # 在這一步，如果是你現在這台，會丟 operation not supported
+        DEVICE = "cuda"
+        model = _tmp_model
+        print("✅ YOLO 模型載入完成，使用 CUDA")
+    else:
+        model = YOLO(jdata["yolo_model"])
+        model.to("cpu")
+        print("⚠️ 沒有可用 CUDA，改用 CPU")
+except Exception as e:
+    # 任何 CUDA 錯誤都改用 CPU
+    print(f"⚠️ CUDA 不可用，改用 CPU：{e}")
+    model = YOLO(jdata["yolo_model"])
+    model.to("cpu")
+    DEVICE = "cpu"
+
 
 async def detect_video_live(video_path: str, on_error=None, interval: int = 10):
     cap = cv2.VideoCapture(video_path)
@@ -34,7 +55,7 @@ async def detect_video_live(video_path: str, on_error=None, interval: int = 10):
             if frame_idx % interval != 0:
                 continue
 
-            results = model.predict(frame, save=False, verbose=False)
+            results = model.predict(frame, save=False, verbose=False, device=DEVICE,)
             boxes = results[0].boxes
 
             # 過濾出分數大於 0.5 的框

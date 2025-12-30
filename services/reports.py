@@ -101,3 +101,83 @@ async def list_reports_with_camera(
         },
     )
     return rows
+
+async def get_weekly_summary(
+    days: int = 7,
+) -> dict:
+    """
+    取得最近 N 天的違規統計：
+    - total：總筆數
+    - by_camera：每個路口的違規數
+    - by_category：每種類型的違規數
+    """
+    # 各路口統計
+    sql_by_camera = """
+    SELECT
+      COALESCE(c.name, '未知地點') AS camera_name,
+      COUNT(*) AS total
+    FROM reports r
+    LEFT JOIN cameras c ON r.camera_id = c.id
+    WHERE r.created_at >= NOW() - INTERVAL :days DAY
+    GROUP BY camera_name
+    ORDER BY total DESC
+    """
+    by_camera = await afetchall(
+        sql_by_camera,
+        {"days": days},
+    )
+
+    # 各類型統計
+    sql_by_category = """
+    SELECT
+      COALESCE(r.category, '未標註') AS category,
+      COUNT(*) AS total
+    FROM reports r
+    WHERE r.created_at >= NOW() - INTERVAL :days DAY
+    GROUP BY category
+    ORDER BY total DESC
+    """
+    by_category = await afetchall(
+        sql_by_category,
+        {"days": days},
+    )
+
+    total = sum(row["total"] for row in by_camera)
+
+    return {
+        "total": total,
+        "by_camera": by_camera,
+        "by_category": by_category,
+        "days": days,
+    }
+
+async def get_weekly_camera_category_counts(
+    days: int = 7,
+) -> list[dict]:
+    """
+    回傳格式：
+    [
+      {
+        "camera_name": "約農力行路口",
+        "camera_name_en": "Yuenong-Lixing Intersection",
+        "category": "bike",
+        "total": 10
+      },
+      ...
+    ]
+    """
+    sql = """
+    SELECT
+      COALESCE(c.name, '未知地點') AS camera_name,
+      COALESCE(c.name_en, c.name, 'unknown') AS camera_name_en,
+      COALESCE(r.category, '未標註') AS category,
+      COUNT(*) AS total
+    FROM reports r
+    LEFT JOIN cameras c ON r.camera_id = c.id
+    WHERE r.created_at >= NOW() - INTERVAL :days DAY
+    GROUP BY camera_name, camera_name_en, category
+    ORDER BY camera_name_en, category
+    """
+    rows = await afetchall(sql, {"days": days})
+    return rows
+
