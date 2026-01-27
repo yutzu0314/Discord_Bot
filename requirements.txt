@@ -4,4 +4,4 @@ ultralytics
 opencv-python
 numpy
 Pillow
-
+norfair

@@ -7,6 +7,8 @@ import json
 import asyncio
 import discord
 from services.reports import save_report
+from detect.reverse_identification.reverse_detector import detect_reverse_live
+
 
 with open("setting.json", "r", encoding="utf-8") as f:
     jdata = json.load(f)
@@ -36,102 +38,26 @@ class RoadSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.parent_view.owner_id:
-            await interaction.response.send_message("❌ 你不是這個選單的使用者，無法操作。", ephemeral=True)
+            await interaction.response.send_message("❌ 你不是這個選單的使用者", ephemeral=True)
             return
 
         selected_road = self.values[0]
         road = get_road_by_name(selected_road)
         if not road:
-            await interaction.response.send_message("❌ 找不到路段設定。", ephemeral=True)
+            await interaction.response.send_message("❌ 找不到路段設定", ephemeral=True)
             return
-        stream_url = road.get("stream_url")
-        lat = road.get("lat")
-        lng = road.get("lng")
 
-        view = StopDetectionView(self.parent_view.cog, interaction.user.id)
-        view.set_stop_state(False)
-        view.violations = []
-        view.flush_task = None
-
-        channel = interaction.client.get_channel(int(jdata["違規車輛_channel"]))
-
-        async def send_violation(img_path, class_names):
-            now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            vehicle_str = ", ".join(class_names) if class_names else "unknown"
-
-            msg = (
-                f"🚨 偵測到違規車輛\n"
-                f"🛵 類別：{vehicle_str}\n"
-                f"📷 路段：{selected_road}\n"
-                f"🕒 時間：{now_time}"
-            )
-            sent_msg = await channel.send(msg, file=discord.File(img_path))
-            image_url = sent_msg.attachments[0].url
-
-            # 寫進 MySQL
-            if class_names:
-                for vehicle in class_names:
-                    await save_report(
-                        guild_id=interaction.guild.id if interaction.guild else None,
-                        channel_id=channel.id,
-                        message_id=sent_msg.id,          # 對應這則 Discord 訊息
-                        reporter_id=view.owner_id,                 # 自動偵測，沒有使用者就留 None
-                        road_name=selected_road,
-                        latitude=lat, longitude=lng,    # 座標
-                        image_url=image_url,
-                        category=vehicle,                 # 逐一寫入偵測到的類別
-                        note="stream detection",
-                        status="pending"
-                    )
-            else:
-                # 沒辨識出類別也存一筆，方便統計
-                await save_report(
-                    guild_id=interaction.guild.id if interaction.guild else None,
-                    channel_id=channel.id,
-                    message_id=sent_msg.id,
-                    reporter_id=view.owner_id,
-                    road_name=selected_road,
-                    latitude=lat, longitude=lng, 
-                    image_url=image_url,
-                    category="unknown",
-                    note="stream detection",
-                    status="pending"
-                )
-
-            for vehicle in class_names:
-                view.violations.append({
-                    "road_name": selected_road,
-                    "vehicle": vehicle,
-                    "image_url": image_url,
-                    "time": now_time
-                })
-
-            # 啟動 5 分鐘後的批次更新
-            if view.flush_task is None or view.flush_task.done():
-                view.flush_task = asyncio.create_task(view.cog.flush_violations_later(view))
-
-            # 刪除本地檔案
-            for _ in range(5):
-                try:
-                    os.remove(img_path)
-                    break
-                except PermissionError:
-                    await asyncio.sleep(0.5)
-
-        await interaction.response.send_message(
-            f"📡 開始偵測 `{selected_road}` 路段...", view=view
+        type_view = DetectTypeView(
+            owner_id=interaction.user.id,
+            cog=self.parent_view.cog,
+            road=road
         )
 
-        async def detection_task():
-            await self.parent_view.cog.run_live_detection(stream_url, send_violation, view)
+        await interaction.response.send_message(
+            f"✅ 已選擇路段：`{selected_road}`\n請選擇要偵測的類型：",
+            view=type_view
+        )
 
-            # 最後刷新一次
-            if view.violations:
-                await view.cog.flush_violations_later(view, delay=0)
-
-            await channel.send("✅ 偵測結束。")
-
-        view.task = asyncio.create_task(detection_task())
 
 
 class RoadSelectView(discord.ui.View):
@@ -140,6 +66,42 @@ class RoadSelectView(discord.ui.View):
         self.cog = cog
         self.owner_id = ctx.author.id
         self.add_item(RoadSelect(road_names, ctx, self))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("❌ 你不是這個選單的使用者，無法操作。", ephemeral=True)
+            return False
+        return True
+
+# ============================
+# UI 元件：偵測類型選單（違規 / 逆向）
+# ============================
+
+class DetectTypeSelect(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view
+        options = [
+            discord.SelectOption(label="違規偵測", value="violation", description="使用 YOLO 偵測違規車輛"),
+            discord.SelectOption(label="逆向偵測", value="reverse", description="偵測逆向行駛（需該路段開啟 reverse_enabled）"),
+        ]
+        super().__init__(placeholder="請選擇偵測類型", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.parent_view.owner_id:
+            await interaction.response.send_message("❌ 你不是這個選單的使用者，無法操作。", ephemeral=True)
+            return
+
+        detect_type = self.values[0]
+        await self.parent_view.cog.start_detection(interaction, self.parent_view, detect_type)
+
+
+class DetectTypeView(discord.ui.View):
+    def __init__(self, owner_id: int, cog, road: dict):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.owner_id = owner_id
+        self.road = road
+        self.add_item(DetectTypeSelect(self))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id:
@@ -199,6 +161,12 @@ class StopDetectionView(discord.ui.View):
 # ============================
 # Notify Cog
 # ============================
+async def get_report_channel(client, channel_id: int):
+    """優先用快取 get_channel，拿不到就 fetch_channel；並確保是可發訊息的頻道物件。"""
+    ch = client.get_channel(channel_id)
+    if ch is None:
+        ch = await client.fetch_channel(channel_id)  # 這步失敗會直接丟例外給外層
+    return ch
 
 class Notify(Cog_Extension):
 
@@ -211,6 +179,182 @@ class Notify(Cog_Extension):
 
         view = RoadSelectView(road_names, ctx, self)
         await ctx.send("請選擇要進行偵測的路段：", view=view)
+
+    async def start_detection(self, interaction: discord.Interaction, type_view: DetectTypeView, detect_type: str):
+        road = type_view.road
+        selected_road = road.get("name")
+        stream_url = road.get("stream_url")
+        lat = road.get("lat")
+        lng = road.get("lng")
+
+        # 如果選逆向，但該路段沒開 reverse_enabled，就直接擋掉
+        if detect_type == "reverse" and not road.get("reverse_enabled", False):
+            await interaction.response.send_message(
+                f"⚠️ `{selected_road}` 尚未開啟逆向偵測（reverse_enabled=false），請改選違規偵測或換路段。",
+                ephemeral=True
+            )
+            return
+
+        view = StopDetectionView(self, interaction.user.id)
+        view.set_stop_state(False)
+        view.violations = []
+        view.flush_task = None
+
+        channel_id = int(jdata["違規車輛_channel"])
+        try:
+            channel = await get_report_channel(interaction.client, channel_id)
+        except Exception as e:
+            print(f"[ERROR] 無法取得回報頻道 channel_id={channel_id}：{repr(e)}")
+            try:
+                await interaction.followup.send("❌ Bot 無法取得回報頻道（頻道ID或權限有問題）。", ephemeral=True)
+            except:
+                pass
+            return
+
+        async def send_violation(img_path, class_names):
+            now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            vehicle_str = ", ".join(class_names) if class_names else "unknown"
+            type_text = "違規偵測" if detect_type == "violation" else "逆向偵測"
+
+            msg = (
+                f"🚨 偵測到事件（{type_text}）\n"
+                f"🛵 類別：{vehicle_str}\n"
+                f"📷 路段：{selected_road}\n"
+                f"🕒 時間：{now_time}"
+            )
+            
+            # --- 送出前先確認檔案存在 ---
+            if not os.path.exists(img_path):
+                print(f"[ERROR] 檔案不存在，無法送出：{img_path}")
+                return
+
+            try:
+                # 有些環境 /tmp 權限或路徑怪，先用 open 確認可讀
+                with open(img_path, "rb") as f:
+                    data = f.read(16)
+                    if not data:
+                        print(f"[ERROR] 檔案為空：{img_path}")
+                        return
+
+                sent_msg = await channel.send(msg, file=discord.File(img_path))
+            except discord.Forbidden as e:
+                print(f"[ERROR] Discord Forbidden（沒有權限送訊息或附件）: {repr(e)}")
+                # 這裡直接回覆給使用者，讓你馬上知道是權限問題
+                try:
+                    await interaction.followup.send("❌ 權限不足：Bot 可能沒有在該頻道『附加檔案/傳送訊息』權限。", ephemeral=True)
+                except:
+                    pass
+                return
+            except discord.HTTPException as e:
+                print(f"[ERROR] Discord HTTPException（可能檔案過大/網路/格式）: {repr(e)}")
+                return
+            except Exception as e:
+                print(f"[ERROR] 送圖未知錯誤: {repr(e)}")
+                return
+            
+            image_url = sent_msg.attachments[0].url
+
+            note_text = f"{detect_type} stream detection"
+
+            # 寫進 MySQL
+            if class_names:
+                for vehicle in class_names:
+                    await save_report(
+                        guild_id=interaction.guild.id if interaction.guild else None,
+                        channel_id=channel.id,
+                        message_id=sent_msg.id,
+                        reporter_id=view.owner_id,
+                        road_name=selected_road,
+                        latitude=lat, longitude=lng,
+                        image_url=image_url,
+                        category=vehicle,
+                        note=note_text,
+                        status="pending"
+                    )
+            else:
+                await save_report(
+                    guild_id=interaction.guild.id if interaction.guild else None,
+                    channel_id=channel.id,
+                    message_id=sent_msg.id,
+                    reporter_id=view.owner_id,
+                    road_name=selected_road,
+                    latitude=lat, longitude=lng,
+                    image_url=image_url,
+                    category="unknown",
+                    note=note_text,
+                    status="pending"
+                )
+
+            # 存到 violations（給 GitHub bulk 用）
+            for vehicle in (class_names or ["unknown"]):
+                view.violations.append({
+                    "road_name": selected_road,
+                    "vehicle": vehicle,
+                    "image_url": image_url,
+                    "time": now_time
+                })
+
+            if view.flush_task is None or view.flush_task.done():
+                view.flush_task = asyncio.create_task(self.flush_violations_later(view))
+
+            # 刪除本地檔
+            for _ in range(5):
+                try:
+                    os.remove(img_path)
+                    break
+                except PermissionError:
+                    await asyncio.sleep(0.5)
+
+        await interaction.response.send_message(
+            f"📡 開始偵測 `{selected_road}`（{ '違規' if detect_type=='violation' else '逆向' }）...",
+            view=view
+        )
+
+        async def detection_task():
+            if detect_type == "violation":
+                await self.run_live_detection(stream_url, send_violation, view)
+            else:
+                await self.run_reverse_detection(stream_url, send_violation, view, road)
+
+            if view.violations:
+                await self.flush_violations_later(view, delay=0)
+
+            await channel.send("✅ 偵測結束。")
+
+        view.task = asyncio.create_task(detection_task())
+
+    async def run_reverse_detection(self, video_path, send_fn, view: StopDetectionView, road: dict, interval=1):
+        async def on_error(error_msg: str):
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"⚠️ 逆向偵測錯誤：{error_msg}")
+
+        reverse_cfg = road.get("reverse_config") or {}
+        profile = reverse_cfg.get("profile", "more")  # 你用 more 就固定 more
+        # 你要用你自己模型（setting.json 的 yolo_model）
+        model_path = jdata.get("yolo_model", "detect/reverse_identification/yolov8n.pt")
+
+        config = reverse_cfg  # ✅ 直接整包丟進去，min_conf/move_min_pixels/roads 都會生效
+
+        try:
+            async for img_path, class_names in detect_reverse_live(
+                video_path,
+                on_error=on_error,
+                interval=interval,
+                profile=profile,
+                model_path=model_path,
+                config=config
+            ):
+                print("[BOT] 收到逆向截圖:", img_path, class_names)
+                await send_fn(img_path, class_names)
+                if view.get_stop_state():
+                    break
+
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"🚫 逆向偵測中斷錯誤：{str(e)}")
+
 
     async def run_live_detection(self, video_path, send_fn, view: StopDetectionView, interval=10):
         async def on_error(error_msg: str):

@@ -7,15 +7,21 @@ import discord
 import json
 import os
 from discord.ext import commands, tasks
-
 from datetime import datetime, timedelta
-
 import matplotlib.pyplot as plt
 from io import BytesIO
-
 from services.reports import get_weekly_summary, get_weekly_camera_category_counts
-
 from cmds.report import ApplyView, ManageView
+
+
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["TORCH_CUDA_ARCH_LIST"] = ""
+
+
+import sys
+print("=== DEBUG PYTHON ===")
+print("sys.executable:", sys.executable)
+print("cwd:", os.getcwd())
 
 with open('setting.json', 'r', encoding='utf8') as jfile:
     jdata = json.load(jfile)
