@@ -5,3 +5,6 @@ opencv-python
 numpy
 Pillow
 norfair
+python-dotenv
+SQLAlchemy>=2.0
+pymysql

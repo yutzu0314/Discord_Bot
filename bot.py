@@ -1,5 +1,23 @@
 from dotenv import load_dotenv
-load_dotenv()  # 讓 .env 生效（如果你沒在別處做過）
+load_dotenv(dotenv_path=".env")  # 讓 .env 生效（如果你沒在別處做過）
+
+import matplotlib
+from matplotlib import font_manager
+
+font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+
+# 把字型檔加進 matplotlib
+font_manager.fontManager.addfont(font_path)
+
+# 取得 matplotlib 真正辨識到的 family name（避免手打 TC 找不到）
+prop = font_manager.FontProperties(fname=font_path)
+font_name = prop.get_name()
+print("=== DEBUG FONT ===")
+print("✅ Matplotlib font resolved as:", font_name)
+
+matplotlib.rcParams["font.family"] = font_name
+matplotlib.rcParams["axes.unicode_minus"] = False
+
 
 import asyncio
 import random
@@ -14,8 +32,8 @@ from services.reports import get_weekly_summary, get_weekly_camera_category_coun
 from cmds.report import ApplyView, ManageView
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-os.environ["TORCH_CUDA_ARCH_LIST"] = ""
+#os.environ["CUDA_VISIBLE_DEVICES"] = ""
+#os.environ["TORCH_CUDA_ARCH_LIST"] = ""
 
 
 import sys
@@ -25,6 +43,8 @@ print("cwd:", os.getcwd())
 
 with open('setting.json', 'r', encoding='utf8') as jfile:
     jdata = json.load(jfile)
+
+print()
 
 # intents
 intents = discord.Intents.default()
