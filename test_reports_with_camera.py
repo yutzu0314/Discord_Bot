@@ -1,5 +1,5 @@
 import asyncio
-from services.reports import save_report, list_reports_with_camera
+from services.reports_service import save_report, list_reports_with_camera
 
 async def main():
     print("=== 建一筆測試 report（會自動建 camera） ===")

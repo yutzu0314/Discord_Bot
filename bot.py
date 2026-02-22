@@ -28,8 +28,8 @@ from discord.ext import commands, tasks
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from io import BytesIO
-from services.reports import get_weekly_summary, get_weekly_camera_category_counts
-from cmds.report import ApplyView, ManageView
+from services.violations_service import get_weekly_summary, get_weekly_camera_category_counts
+from cmds.violation_request import ApplyView, ManageView
 
 
 #os.environ["CUDA_VISIBLE_DEVICES"] = ""

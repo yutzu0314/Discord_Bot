@@ -2,6 +2,11 @@
 from db import aexec, afetchall
 from services.camera_service import get_or_create_camera  # ⬅️ 新增這行 import
 
+async def get_report_by_message_id(message_id: int) -> dict | None:
+    sql = "SELECT * FROM reports WHERE message_id = :mid LIMIT 1"
+    rows = await afetchall(sql, {"mid": message_id})
+    return rows[0] if rows else None
+
 async def save_report(
     *,
     guild_id=None,

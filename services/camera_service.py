@@ -2,6 +2,19 @@
 from typing import Optional
 from db import afetchall, aexec
 
+async def list_active_cameras(guild_id: int):
+    rows = await afetchall(
+        """
+        SELECT id, name, stream_url, latitude, longitude
+        FROM cameras
+        WHERE guild_id = :gid
+          AND is_active = 1
+        ORDER BY name
+        """,
+        {"gid": guild_id},
+    )
+    return rows
+
 async def get_or_create_camera(
     *,
     guild_id: int,

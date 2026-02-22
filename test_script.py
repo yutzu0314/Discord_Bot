@@ -1,5 +1,5 @@
 import asyncio
-from services.reports import save_report
+from services.reports_service import save_report
 
 async def main():
     await save_report(
