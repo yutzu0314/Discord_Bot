@@ -356,6 +356,3 @@ python bot.py
 * Feature 建議
 
 共同改進交通監控系統。
-
-如果你願意，我可以幫你畫一張 **完整 pipeline 圖**。
-```
