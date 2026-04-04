@@ -1,6 +1,6 @@
 from discord.ext import commands
 from core.classes import Cog_Extension
-from detect.detector import detect_video_live
+from detect.detector import detect_video_live, detect_accident_live
 import os
 from datetime import datetime
 import json
@@ -85,6 +85,7 @@ class DetectTypeSelect(discord.ui.Select):
         options = [
             discord.SelectOption(label="違規偵測", value="violation", description="使用 YOLO 偵測違規車輛"),
             discord.SelectOption(label="逆向偵測", value="reverse", description="偵測逆向行駛（需該路段開啟 reverse_enabled）"),
+            discord.SelectOption(label="車禍偵測", value="accident", description="偵測車禍 / 碰撞異常"),
         ]
         super().__init__(placeholder="請選擇偵測類型", min_values=1, max_values=1, options=options)
 
@@ -227,7 +228,14 @@ class Notify(Cog_Extension):
         async def send_violation(img_path, class_names):
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             vehicle_str = ", ".join(class_names) if class_names else "unknown"
-            type_text = "違規偵測" if detect_type == "violation" else "逆向偵測"
+            if detect_type == "violation":
+                type_text = "違規偵測"
+            elif detect_type == "reverse":
+                type_text = "逆向偵測"
+            elif detect_type == "accident":
+                type_text = "車禍偵測"
+            else:
+                type_text = detect_type
 
             msg = (
                 f"🚨 偵測到事件（{type_text}）\n"
@@ -296,17 +304,27 @@ class Notify(Cog_Extension):
                 except PermissionError:
                     await asyncio.sleep(0.5)
 
+        type_label_map = {
+            "violation": "違規",
+            "reverse": "逆向",
+            "accident": "車禍",
+        }
+
         await interaction.response.send_message(
-            f"📡 開始偵測 `{selected_road}`（{ '違規' if detect_type=='violation' else '逆向' }）...",
+            f"📡 開始偵測 `{selected_road}`（{type_label_map.get(detect_type, detect_type)}）...",
             view=view
         )
 
         async def detection_task():
             if detect_type == "violation":
                 await self.run_live_detection(stream_url, send_violation, view)
-            else:
-                # reverse 仍然用 setting.json 的設定檔（Phase1）
+            elif detect_type == "reverse":
                 await self.run_reverse_detection(stream_url, send_violation, view, reverse_cfg)
+            elif detect_type == "accident":
+                await self.run_accident_detection(stream_url, send_violation, view)
+            else:
+                await channel.send(f"❌ 未知偵測類型：{detect_type}")
+                return
 
             if view.violations:
                 await self.flush_violations_later(view, delay=0)
@@ -360,6 +378,23 @@ class Notify(Cog_Extension):
         except Exception as e:
             channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
             await channel.send(f"🚫 偵測中斷錯誤：{str(e)}")
+    
+    async def run_accident_detection(self, video_path, send_fn, view: StopDetectionView, interval=1):
+        async def on_error(error_msg: str):
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"⚠️ 車禍偵測錯誤：{error_msg}")
+
+        try:
+            async for img_path, class_names in detect_accident_live(video_path, on_error, interval):
+                print("[BOT] 收到車禍截圖:", img_path, class_names)
+                await send_fn(img_path, class_names)
+                if view.get_stop_state():
+                    break
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"🚫 車禍偵測中斷錯誤：{str(e)}")
 
     async def flush_violations_later(self, view, delay=300):
         await asyncio.sleep(delay)

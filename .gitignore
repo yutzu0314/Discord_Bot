@@ -22,3 +22,4 @@ __pycache__/
 
 # yolo predict
 runs
+test_videos

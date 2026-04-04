@@ -18,7 +18,7 @@ print("✅ Matplotlib font resolved as:", font_name)
 matplotlib.rcParams["font.family"] = font_name
 matplotlib.rcParams["axes.unicode_minus"] = False
 
-
+ 
 import asyncio
 import random
 import discord
