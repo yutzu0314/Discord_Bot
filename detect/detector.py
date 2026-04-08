@@ -43,8 +43,9 @@ def load_yolo_model(model_path: str, model_name: str = "YOLO"):
 model = load_yolo_model(jdata["yolo_model"], "違規偵測模型")
 
 # 車禍偵測模型
-ACCIDENT_MODEL_PATH = jdata.get("accident_yolo_model", jdata["yolo_model"])
-accident_model = load_yolo_model(ACCIDENT_MODEL_PATH, "車禍偵測模型")
+# ACCIDENT_MODEL_PATH = jdata.get("accident_yolo_model", jdata["yolo_model"])
+# accident_model = load_yolo_model(ACCIDENT_MODEL_PATH, "車禍偵測模型")
+accident_model = jdata["yolo_model"]
 
 
 async def detect_video_live(video_path: str, on_error=None, interval: int = 10):
