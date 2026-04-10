@@ -3,7 +3,7 @@ import json
 import os
 
 
-TRACKGUARD_ROOT = "/home/inf431/trackguard-lte-04 (ver 2)"
+TRACKGUARD_ROOT = "/home/inf431/trackguard"
 TRACKGUARD_MAIN = os.path.join(TRACKGUARD_ROOT, "main.py")
 
 
