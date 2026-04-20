@@ -308,17 +308,31 @@ class Notify(Cog_Extension):
                 f"🚨 偵測到事件（{type_text}）\n"
                 f"🛵 類別：{vehicle_str}\n"
                 f"📷 路段：{selected_road}\n"
-                f"🕒 時間：{now_time}"
+                f"🕒 時間：{now_time}\n"
+                f"🧠 偵測標註畫面"
             )
 
-            # 只接受標註圖
-            if not annotated_img_path or not os.path.exists(annotated_img_path):
-                print(f"[ERROR] 標註圖不存在，無法送出：{annotated_img_path}")
+            # 優先使用標註圖，但給它一點時間生成
+            send_path = None
+
+            if annotated_img_path:
+                for _ in range(10):  # 最多等 2 秒
+                    if os.path.exists(annotated_img_path):
+                        send_path = annotated_img_path
+                        break
+                    await asyncio.sleep(0.2)
+
+            # 如果標註圖還是沒有，就退回原圖
+            if not send_path and original_img_path and os.path.exists(original_img_path):
+                send_path = original_img_path
+
+            if not send_path:
+                print(f"[ERROR] 無可傳送圖片，original={original_img_path}, annotated={annotated_img_path}")
                 return
 
             sent_msg = await channel.send(
-                # msg + "\n🧠 偵測標註畫面",
-                file=discord.File(annotated_img_path)
+                content=msg,
+                file=discord.File(send_path)
             )
 
             image_url = sent_msg.attachments[0].url
@@ -371,7 +385,6 @@ class Notify(Cog_Extension):
             elif detect_type == "reverse":
                 await self.run_reverse_detection(stream_url, send_violation, view, reverse_cfg)
             elif detect_type == "accident":
-
                 if stream_url.startswith("file://"):
                     video_path = stream_url.replace("file://", "")
                 else:
