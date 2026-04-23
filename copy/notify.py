@@ -48,8 +48,7 @@ class VideoPathModal(discord.ui.Modal, title="輸入測試影片路徑"):
             "name": f"測試影片：{os.path.basename(path)}",
             "stream_url": f"file://{path}",
             "latitude": None,
-            "longitude": None,
-            "channel_id": None,  # 測試影片先走 fallback
+            "longitude": None
         }
 
         type_view = DetectTypeView(
@@ -100,6 +99,7 @@ class RoadSelect(discord.ui.Select):
 
         selected_value = self.values[0]
 
+        # 先處理「其他」
         if selected_value == "__custom__":
             await interaction.response.send_modal(
                 VideoPathModal(
@@ -142,7 +142,7 @@ class RoadSelectView(discord.ui.View):
 
 
 # ============================
-# UI 元件：偵測類型選單（違規 / 逆向 / 車禍）
+# UI 元件：偵測類型選單（違規 / 逆向）
 # ============================
 
 class DetectTypeSelect(discord.ui.Select):
@@ -202,6 +202,7 @@ class StopButton(discord.ui.Button):
         await interaction.response.edit_message(view=self.parent_view)
         await interaction.followup.send("中止偵測！")
 
+
 class StopDetectionView(discord.ui.View):
     def __init__(self, cog, owner_id):
         super().__init__(timeout=None)
@@ -227,33 +228,14 @@ class StopDetectionView(discord.ui.View):
 
 
 # ============================
-# Helper
-# ============================
-
-async def get_report_channel(client, channel_id: int):
-    """優先用快取 get_channel，拿不到就 fetch_channel。"""
-    ch = client.get_channel(channel_id)
-    if ch is None:
-        ch = await client.fetch_channel(channel_id)
-    return ch
-
-def get_camera_channel_id(camera: dict) -> int:
-    """
-    優先使用 camera.channel_id
-    找不到時 fallback 到 setting.json 的 違規車輛_channel，再不行用 通知_channel
-    """
-    camera_channel_id = camera.get("channel_id")
-
-    if camera_channel_id:
-        return int(camera_channel_id)
-
-    fallback_id = jdata.get("違規車輛_channel") or jdata["通知_channel"]
-    return int(fallback_id)
-
-
-# ============================
 # Notify Cog
 # ============================
+async def get_report_channel(client, channel_id: int):
+    """優先用快取 get_channel，拿不到就 fetch_channel；並確保是可發訊息的頻道物件。"""
+    ch = client.get_channel(channel_id)
+    if ch is None:
+        ch = await client.fetch_channel(channel_id)  # 這步失敗會直接丟例外給外層
+    return ch
 
 class Notify(Cog_Extension):
 
@@ -271,12 +253,10 @@ class Notify(Cog_Extension):
     async def start_detection(self, interaction: discord.Interaction, type_view: DetectTypeView, detect_type: str):
         camera = type_view.camera
         camera_id = camera["id"]
-        selected_road = camera["name"].strip()
+        selected_road = camera["name"]
         stream_url = camera.get("stream_url")
         lat = camera.get("latitude")
         lng = camera.get("longitude")
-
-        print("[DEBUG] selected camera =", camera)
 
         if not stream_url:
             await interaction.response.send_message(
@@ -300,18 +280,14 @@ class Notify(Cog_Extension):
         view.violations = []
         view.flush_task = None
 
-        report_channel_id = get_camera_channel_id(camera)
-
+        report_channel_id = int(jdata["違規車輛_channel"])
         try:
             channel = await get_report_channel(interaction.client, report_channel_id)
         except Exception as e:
             print(f"[ERROR] 無法取得回報頻道 channel_id={report_channel_id}：{repr(e)}")
             try:
-                await interaction.followup.send(
-                    f"❌ Bot 無法取得 `{selected_road}` 的回報頻道（channel_id={report_channel_id}）。",
-                    ephemeral=True
-                )
-            except Exception:
+                await interaction.followup.send("❌ Bot 無法取得回報頻道（頻道ID或權限有問題）。", ephemeral=True)
+            except:
                 pass
             return
 
@@ -336,15 +312,17 @@ class Notify(Cog_Extension):
                 f"🧠 偵測標註畫面"
             )
 
+            # 優先使用標註圖，但給它一點時間生成
             send_path = None
 
             if annotated_img_path:
-                for _ in range(10):
+                for _ in range(10):  # 最多等 2 秒
                     if os.path.exists(annotated_img_path):
                         send_path = annotated_img_path
                         break
                     await asyncio.sleep(0.2)
 
+            # 如果標註圖還是沒有，就退回原圖
             if not send_path and original_img_path and os.path.exists(original_img_path):
                 send_path = original_img_path
 
@@ -378,6 +356,7 @@ class Notify(Cog_Extension):
                     "time": now_time
                 })
 
+            # 刪除本地檔
             for path in [original_img_path, annotated_img_path]:
                 if not path:
                     continue
@@ -396,23 +375,22 @@ class Notify(Cog_Extension):
         }
 
         await interaction.response.send_message(
-            f"📡 開始偵測 `{selected_road}`（{type_label_map.get(detect_type, detect_type)}）...\n"
-            f"📨 回報頻道：{channel.mention}",
+            f"📡 開始偵測 `{selected_road}`（{type_label_map.get(detect_type, detect_type)}）...",
             view=view
         )
 
         async def detection_task():
             if detect_type == "violation":
-                await self.run_live_detection(stream_url, send_violation, view, channel)
+                await self.run_live_detection(stream_url, send_violation, view)
             elif detect_type == "reverse":
-                await self.run_reverse_detection(stream_url, send_violation, view, reverse_cfg, channel)
+                await self.run_reverse_detection(stream_url, send_violation, view, reverse_cfg)
             elif detect_type == "accident":
                 if stream_url.startswith("file://"):
                     video_path = stream_url.replace("file://", "")
                 else:
-                    video_path = stream_url
+                    video_path = stream_url  # 未來可接 RTSP
 
-                await self.run_trackguard_detection(video_path, send_violation, view, channel)
+                await self.run_trackguard_detection(video_path, send_violation, view)
             else:
                 await channel.send(f"❌ 未知偵測類型：{detect_type}")
                 return
@@ -424,13 +402,14 @@ class Notify(Cog_Extension):
 
         view.task = asyncio.create_task(detection_task())
 
-    async def run_reverse_detection(self, video_path, send_fn, view: StopDetectionView, reverse_cfg: dict, report_channel, interval=1):
+    async def run_reverse_detection(self, video_path, send_fn, view: StopDetectionView, reverse_cfg: dict, interval=1):
         async def on_error(error_msg: str):
-            await report_channel.send(f"⚠️ 逆向偵測錯誤：{error_msg}")
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"⚠️ 逆向偵測錯誤：{error_msg}")
 
         profile = reverse_cfg.get("profile", "more")
         model_path = jdata.get("yolo_model", "detect/reverse_identification/yolov8n.pt")
-        config = reverse_cfg
+        config = reverse_cfg  # ✅ DB 回來的格式就是 {profile,min_conf,move_min_pixels,roads}
 
         try:
             async for img_path, class_names in detect_reverse_live(
@@ -449,11 +428,14 @@ class Notify(Cog_Extension):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            await report_channel.send(f"🚫 逆向偵測中斷錯誤：{str(e)}")
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"🚫 逆向偵測中斷錯誤：{str(e)}")
 
-    async def run_live_detection(self, video_path, send_fn, view: StopDetectionView, report_channel, interval=10):
+
+    async def run_live_detection(self, video_path, send_fn, view: StopDetectionView, interval=10):
         async def on_error(error_msg: str):
-            await report_channel.send(f"⚠️ 錯誤：{error_msg}")
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"⚠️ 錯誤：{error_msg}")
 
         try:
             async for img_path, class_names in detect_video_live(video_path, on_error, interval):
@@ -463,11 +445,13 @@ class Notify(Cog_Extension):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            await report_channel.send(f"🚫 偵測中斷錯誤：{str(e)}")
-
-    async def run_accident_detection(self, video_path, send_fn, view: StopDetectionView, report_channel, interval=1):
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"🚫 偵測中斷錯誤：{str(e)}")
+    
+    async def run_accident_detection(self, video_path, send_fn, view: StopDetectionView, interval=1):
         async def on_error(error_msg: str):
-            await report_channel.send(f"⚠️ 車禍偵測錯誤：{error_msg}")
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"⚠️ 車禍偵測錯誤：{error_msg}")
 
         try:
             async for img_path, class_names in detect_accident_live(video_path, on_error, interval):
@@ -478,19 +462,28 @@ class Notify(Cog_Extension):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            await report_channel.send(f"🚫 車禍偵測中斷錯誤：{str(e)}")
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"🚫 車禍偵測中斷錯誤：{str(e)}")
 
-    async def run_trackguard_detection(self, video_path, send_fn, view: StopDetectionView, report_channel):
+    async def run_trackguard_detection(self, video_path, send_fn, view: StopDetectionView):
         from services.trackguard_runner import run_trackguard_process
 
         async def on_event(event: dict):
+            # print("🔥 GOT EVENT", event)
+
             image_path = event.get("image_path")
             annotated_image_path = event.get("annotated_image_path")
+
+            # print("image_path =", image_path)
+            # print("annotated_image_path =", annotated_image_path)
+            # print("image exists =", os.path.exists(image_path) if image_path else False)
+            # print("annotated exists =", os.path.exists(annotated_image_path) if annotated_image_path else False)
 
             class_names = [
                 f"{event.get('class_primary', 'unknown')} vs {event.get('class_secondary', 'unknown')}"
             ]
 
+            # 優先使用原始圖；若原始圖不存在但標註圖存在，也照樣送
             if image_path and os.path.exists(image_path):
                 await send_fn(image_path, class_names, annotated_image_path)
             elif annotated_image_path and os.path.exists(annotated_image_path):
@@ -506,7 +499,8 @@ class Notify(Cog_Extension):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            await report_channel.send(f"🚫 TrackGuard 偵測中斷錯誤：{str(e)}")
+            channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            await channel.send(f"🚫 TrackGuard 偵測中斷錯誤：{str(e)}")
 
     async def flush_violations_later(self, view, delay=300):
         await asyncio.sleep(delay)
@@ -515,6 +509,8 @@ class Notify(Cog_Extension):
             from detect.github_sync import update_violation_to_github_bulk
             update_violation_to_github_bulk(view.violations)
             view.violations.clear()
+            #channel = self.bot.get_channel(int(jdata["違規車輛_channel"]))
+            #await channel.send("✅ 自動更新 GitHub 完成")
 
         view.flush_task = None
 
