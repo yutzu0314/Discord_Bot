@@ -23,7 +23,8 @@ class VideoPathModal(discord.ui.Modal, title="輸入測試影片路徑"):
 
     video_path = discord.ui.TextInput(
         label="影片路徑",
-        placeholder="/home/inf431/test.mp4",
+        placeholder="/home/inf431/datasets/sources/video/xxx.mp4",
+        default="/home/inf431/datasets/sources/video/",
         required=True
     )
 
@@ -34,6 +35,9 @@ class VideoPathModal(discord.ui.Modal, title="輸入測試影片路徑"):
 
     async def on_submit(self, interaction: discord.Interaction):
         path = str(self.video_path).strip()
+
+        if not os.path.isabs(path):
+            path = os.path.join(VIDEO_BASE_DIR, path)
 
         if not path:
             await interaction.response.send_message("❌ 請輸入影片路徑", ephemeral=True)
@@ -49,7 +53,7 @@ class VideoPathModal(discord.ui.Modal, title="輸入測試影片路徑"):
             "stream_url": f"file://{path}",
             "latitude": None,
             "longitude": None,
-            "channel_id": None,  # 測試影片先走 fallback
+            "channel_id": "1496769328727724172",  # 測試影片先走 fallback
         }
 
         type_view = DetectTypeView(
@@ -63,6 +67,33 @@ class VideoPathModal(discord.ui.Modal, title="輸入測試影片路徑"):
             view=type_view,
             ephemeral=True
         )
+
+class OpenVideoPathModalButton(discord.ui.Button):
+    def __init__(self, cog, owner_id):
+        super().__init__(
+            label="輸入影片路徑",
+            style=discord.ButtonStyle.primary
+        )
+        self.cog = cog
+        self.owner_id = owner_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("❌ 你不是這個選單的使用者", ephemeral=True)
+            return
+
+        await interaction.response.send_modal(
+            VideoPathModal(
+                cog=self.cog,
+                owner_id=self.owner_id
+            )
+        )
+
+
+class OpenVideoPathModalView(discord.ui.View):
+    def __init__(self, cog, owner_id):
+        super().__init__(timeout=60)
+        self.add_item(OpenVideoPathModalButton(cog, owner_id))
 
 class RoadSelect(discord.ui.Select):
     def __init__(self, cameras, ctx, parent_view):
@@ -101,14 +132,19 @@ class RoadSelect(discord.ui.Select):
         selected_value = self.values[0]
 
         if selected_value == "__custom__":
-            await interaction.response.send_modal(
-                VideoPathModal(
+            tree_text = build_video_tree()
+
+            await interaction.response.send_message(
+                f"📂 目前測試影片資料夾：`{VIDEO_BASE_DIR}`\n"
+                f"```text\n{tree_text}\n```\n"
+                f"請點下面按鈕輸入影片路徑。",
+                view=OpenVideoPathModalView(
                     cog=self.parent_view.cog,
                     owner_id=interaction.user.id
-                )
+                ),
+                ephemeral=True
             )
             return
-
         camera_id = int(selected_value)
 
         selected_camera = next(
@@ -229,6 +265,39 @@ class StopDetectionView(discord.ui.View):
 # ============================
 # Helper
 # ============================
+
+VIDEO_BASE_DIR = "/home/inf431/datasets/sources/video"
+
+def build_video_tree(base_dir=VIDEO_BASE_DIR, max_chars=1600):
+    lines = ["."]
+    
+    for root, dirs, files in os.walk(base_dir):
+        dirs.sort()
+        files.sort()
+
+        rel_root = os.path.relpath(root, base_dir)
+        if rel_root == ".":
+            level = 0
+        else:
+            level = rel_root.count(os.sep) + 1
+
+        indent = "│   " * max(level - 1, 0)
+
+        if rel_root != ".":
+            dirname = os.path.basename(root)
+            lines.append(f"{indent}├── {dirname}")
+
+        file_indent = "│   " * level
+        for filename in files:
+            if filename.lower().endswith((".mp4", ".avi", ".mov", ".mkv")):
+                lines.append(f"{file_indent}├── {filename}")
+
+    text = "\n".join(lines)
+
+    if len(text) > max_chars:
+        text = text[:max_chars] + "\n...（檔案太多，已截斷）"
+
+    return text
 
 async def get_report_channel(client, channel_id: int):
     """優先用快取 get_channel，拿不到就 fetch_channel。"""
