@@ -1,0 +1,57 @@
+SDP-02-10
+
+self.assignment_thresholds = {
+            'sparse': {
+                'iou': 0.4,      # IoU similarity threshold - stricter (dari cost 0.6)
+                'color': 0.6,    # Color similarity threshold - higher untuk sparse scene
+                'shape': 0.5,    # Shape similarity threshold - moderate
+                'combined': 0.5  # Combined score threshold - stricter untuk consistency
+            },
+            'normal': {
+                'iou': 0.5,      # IoU similarity threshold - much stricter (dari cost 0.5)
+                'color': 0.5,    # Color similarity threshold - moderate
+                'shape': 0.4,    # Shape similarity threshold - moderate
+                'combined': 0.5  # Combined score threshold - stricter untuk consistency
+            },
+            'crowded': {
+                'iou': 0.6,      # IoU similarity threshold - very strict (dari cost 0.4)
+                'color': 0.4,    # Color similarity threshold - moderate
+                'shape': 0.3,    # Shape similarity threshold - moderate
+                'combined': 0.4  # Combined score threshold - stricter
+            },
+            'extreme': {
+                'iou': 0.7,      # IoU similarity threshold - strictest (dari cost 0.3)
+                'color': 0.4,    # Color similarity threshold - moderate
+                'shape': 0.3,    # Shape similarity threshold - moderate
+                'combined': 0.4  # Combined score threshold - strictest
+            }
+        }
+
+sdp-13
+
+self.assignment_thresholds = {
+    'sparse': {
+        'iou': 0.38,      # -0.02 dari baseline
+        'color': 0.58,    # -0.02
+        'shape': 0.48,    # -0.02
+        'combined': 0.48  # -0.02
+    },
+    'normal': {
+        'iou': 0.48,      # -0.02 dari baseline
+        'color': 0.48,    # -0.02
+        'shape': 0.38,    # -0.02
+        'combined': 0.48  # -0.02
+    },
+    'crowded': {
+        'iou': 0.58,      # -0.02 dari baseline
+        'color': 0.38,    # -0.02
+        'shape': 0.28,    # -0.02
+        'combined': 0.38  # -0.02
+    },
+    'extreme': {
+        'iou': 0.68,      # -0.02 dari baseline
+        'color': 0.38,    # -0.02
+        'shape': 0.28,    # -0.02
+        'combined': 0.38  # -0.02
+    }
+}

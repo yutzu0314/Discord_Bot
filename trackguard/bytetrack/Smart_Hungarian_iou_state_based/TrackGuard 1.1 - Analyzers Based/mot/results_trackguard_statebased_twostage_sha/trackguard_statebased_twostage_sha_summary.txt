@@ -1,0 +1,30 @@
+TRACKGUARD STATE-BASED TWO-STAGE SHA MOT EVALUATION SUMMARY
+==================================================
+
+Algorithm: State-Based Two-Stage + Smart Hungarian TrackGuard
+Sequence: MOT17-13-SDP
+Frames: 1 - 750
+Success Rate: 100.0%
+
+Algorithm Type: state_based_two_stage_sha
+Matcher: smart_hungarian_trackguard
+Max Age: 30
+Min Hits: 3
+Ghost Nodes: True
+Note: Tuning parameters hardcoded in smart_hungarian_trackguard.py
+Cost Matrix: Multi-Modal (IoU + Color + Shape)
+Weighting: Scene-Adaptive (in smart_hungarian_trackguard.py)
+
+MOTA Score: 0.719
+IDF1 Score: 0.611
+Precision:  0.909
+Recall:     0.826
+
+Total GT:   11,532
+FP:         950
+FN:         2,010
+ID Switch:  285
+Frames:     750
+
+Processing Time: 143.7s (2.4 min)
+Average FPS: 5.2

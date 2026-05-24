@@ -1,0 +1,89 @@
+SDP-02 dan SDP-04
+
+self.uncertainty_thresholds = {
+            'sparse': 0.6,      # IoU cost threshold - stricter untuk consistency
+            'normal': 0.5,      # IoU cost threshold - much stricter
+            'crowded': 0.4,     # IoU cost threshold - very strict
+            'extreme': 0.3      # IoU cost threshold - strictest
+        }
+        self.recovery_thresholds = {
+            'sparse': 0.8,      # Recovery threshold - stricter
+            'normal': 0.7,      # Recovery threshold - much stricter
+            'crowded': 0.6,     # Recovery threshold - very strict
+            'extreme': 0.5      # Recovery threshold - strictest
+        }
+
+SDP 05
+
+self.uncertainty_thresholds = {
+    'sparse': 0.60,     # Moderate increase dari baseline (0.36)
+    'normal': 0.50,     # Balanced increase
+    'crowded': 0.42,    # Moderate crowded
+    'extreme': 0.35     # Conservative extreme
+}
+self.recovery_thresholds = {
+    'sparse': 0.70,     # Moderate recovery
+    'normal': 0.60,     # Balanced recovery
+    'crowded': 0.52,    # Moderate crowded recovery
+    'extreme': 0.45     # Conservative extreme recovery
+}
+
+SDP 09
+
+self.uncertainty_thresholds = {
+    'sparse': 0.70,     # Very loose balanced
+    'normal': 0.60,     # Loose balanced main
+    'crowded': 0.50,    # Loose balanced crowded
+    'extreme': 0.40     # Moderate extreme
+}
+self.recovery_thresholds = {
+    'sparse': 0.85,     # Very aggressive recovery
+    'normal': 0.75,     # Aggressive recovery
+    'crowded': 0.65,    # Strong recovery
+    'extreme': 0.55     # Moderate recovery
+}
+
+SDP 10
+
+self.uncertainty_thresholds = {
+    'sparse': 0.87,     # +0.02 dari C (0.85)
+    'normal': 0.77,     # +0.02 dari C (0.75)
+    'crowded': 0.67,    # +0.02 dari C (0.65)
+    'extreme': 0.57     # +0.02 dari C (0.55)
+}
+self.recovery_thresholds = {
+    'sparse': 0.96,     # +0.02 dari C (0.94)
+    'normal': 0.87,     # +0.02 dari C (0.85)
+    'crowded': 0.77,    # +0.02 dari C (0.75)
+    'extreme': 0.67     # +0.02 dari C (0.65)
+}
+
+SDP 11
+
+self.uncertainty_thresholds = {
+    'sparse': 0.86,     # -0.03 dari current (0.89)
+    'normal': 0.76,     # -0.03 dari current (0.79)
+    'crowded': 0.66,    # -0.03 dari current (0.69)
+    'extreme': 0.56     # -0.03 dari current (0.59)
+}
+self.recovery_thresholds = {
+    'sparse': 0.94,     # -0.03 dari current (0.97)
+    'normal': 0.86,     # -0.03 dari current (0.89)
+    'crowded': 0.76,    # -0.03 dari current (0.79)
+    'extreme': 0.66     # -0.03 dari current (0.69)
+}
+
+SDP 13
+
+self.uncertainty_thresholds = {
+    'sparse': 0.66,     # -0.06 dari J
+    'normal': 0.56,     # -0.06 dari J
+    'crowded': 0.46,    # -0.06 dari J
+    'extreme': 0.36     # -0.06 dari J
+}
+self.recovery_thresholds = {
+    'sparse': 0.76,     # -0.06 dari J
+    'normal': 0.66,     # -0.06 dari J
+    'crowded': 0.56,    # -0.06 dari J
+    'extreme': 0.46     # -0.06 dari J
+}

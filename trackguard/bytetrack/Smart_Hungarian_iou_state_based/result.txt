@@ -1,0 +1,135 @@
+Dataset	Sequence	Detector	Configurasi	MOTA	Recall	IDF1	Precision	IDSw	FP	FN
+MOT17	MOT17-02-SDP	Greedy ReID	Vanilla	0,59	0,69	0,45	0,90	394,00	1008	3949
+		Greedy IoU	Vanilla	0,57	0,72	0,64	0,84	194,00	1832	3690
+		Hungarian ReID	Vanilla	0,62	0,71	0,64	0,90	110,00	1041	3789
+		Hungarian IoU	Vanilla	0,61	0,71	0,61	0,88	153,00	1251	3774
+		Smart Hungarian ReID	Vanilla	0,59	0,71	0,73	0,87	82,00	1391	3796
+		Smart Hungarian IoU	Vanilla	0,58	0,76	0,60	0,94	176,00	529	2676
+		Hungarian ReID	State Base	0,65	0,68	0,70	0,97	114,00	312	4156
+		Hungarian IoU	State Base	0,651	0.68	0.75	0.96	103	304	4171
+		Greedy IoU	State Base	0,644	0,68	0,61	0,967	195	301	4175
+		Greedy ReID	State Base	0,63	0,68	0,50	0,97	359,00	305	4165
+		Smart Hungarian ReID	State Base	0,647	0,67	0,72	0,967	37	300	4328
+		Smart Hungarian IoU	State Base	0,647	0,67	0,72	0,963	64	339	4236
+		ByteTrack Hungarian IoU	Two-Stage	0,471	0,499	0,848	0,952	75	633	12.731
+		DeepSORT ReID	Cascade	0,450	0,514	0,784	0,897	131	1.494	12.354
+		TrackGuard 1.0	Two-Stage	0,681	0,74	0,65	0,934	100	877	4363
+										
+Dataset	Sequence	Detector	Configurasi	MOTA	Recall	IDF1	Precision	IDSw	FP	FN
+MOT17	MOT17-04-SDP	Greedy ReID	Vanilla	0,59	0,73	0,63	0,84	350	6293	12717
+		Greedy IoU	Vanilla	0,59	0,74	0,82	0.83	175	7000	12185
+		Hungarian ReID	Vanilla	0,61	0,74	0,81	0,85	150	6023	12247
+		Hungarian IoU	Vanilla	0,61	0,74	0,79	0,85	150	5962	12248
+		Smart Hungarian ReID	Vanilla	0,58	0,75	0,85	0,81	60	8300	11,534
+		Smart Hungarian IoU	Vanilla	0,61	0,75	0,89	0,83	21	7031	11420
+		Hungarian ReID	State Base	0,61	0,72	0,83	0,86	168	5487	12914
+		Hungarian IoU	State Base	0,608	0.72	0.84	0.86	157	5483	12915
+		Greedy IoU	State Base	0,607	0,72	0,78	0,86	209	5486	12914
+		Greedy ReID	State Base	0,60	0,72	0,62	0,86	354	5483	12914
+		Smart Hungarian ReID	State Base	0,607	0,73	0.87	0,85	7	5338	12291
+		Smart Hungarian IoU	State Base	0,607	0.72	0,84	0.85	8	5704	12895
+		ByteTrack Hungarian IoU	Two-Stage	0,698	0,817	0,970	0,873	13	6.209	9.564
+		DeepSORT ReID	Cascade	0,702	0.82	0,971	0,874	14	6.202	9.339
+		TrackGuard 1.0	Two-Stage	0,655	0,759	0,748	0,878	46	3755	8870
+										
+Dataset	Sequence	Detector	Configurasi	MOTA	Recall	IDF1	Precision	IDSw	FP	FN
+MOT17	MOT17-05-SDP	Greedy ReID	Vanilla	0,51	0,80	0,55	0,76	249,00	1369	1082
+		Greedy IoU	Vanilla	0,30	0,82	0,80	0,62	101,00	2750	1007
+		Hungarian ReID	Vanilla	0,54	0,82	0,73	0,76	91,00	1465	1013
+		Hungarian IoU	Vanilla	0,52	0,82	0,73	0,75	87,00	1524	1022
+		Smart Hungarian ReID	Vanilla	0,67	0,80	0,87	0,87	70,00	667	1100
+		Smart Hungarian IoU	Vanilla	0,57	0,81	0,84	0,77	21,00	1333	1037
+		Hungarian ReID	State Base	0,71	0,79	0,83	0,92	100,00	390	1139
+		Hungarian IoU	State Base	0,708	0.79	0.85	0,919	83	387	1141
+		Greedy IoU	State Base	0,69	0,794	0,69	0.91	164	384	1140
+		Greedy ReID	State Base	0,74	0,79	0,49	0,98	130,00	86	906
+		Smart Hungarian ReID	State Base	0,704	0,797	0,901	0,904	46	469	1122
+		Smart Hungarian IoU	State Base	0,709	0,796	0,82	0,905	22	460	1126
+		ByteTrack Hungarian IoU	Two-Stage	0,625	0,694	0,943	0,910	33	464	2.215
+		DeepSORT ReID	Cascade	0,613	0,695	0,961	0,898	27	569	2.204
+		TrackGuard 1.0	Two-Stage	0,738	0,852	0,828	0,89	40	504	707
+										
+Dataset	Sequence	Detector	Configurasi	MOTA	Recall	IDF1	Precision	IDSw	FP	FN
+MOT17	MOT17-09-SDP	Greedy ReID	Vanilla	0,67	0,80	0,47	0,89	134,00	421	854
+		Greedy IoU	Vanilla	0,65	0,82	0,65	0,84	70,00	648	757
+		Hungarian ReID	Vanilla	0,74	0,83	0,66	0,92	49,00	329	730
+		Hungarian IoU	Vanilla	0,74	0,83	0,67	0,91	48,00	338	732
+		Smart Hungarian ReID	Vanilla	0,72	0,82	0,72	0,89	21,00	412	750
+		Smart Hungarian IoU	Vanilla	0,71	0,83	0,75	0,87	17,00	534	4328
+		Hungarian ReID	State Base	0,75	0,81	0,75	0,95	128,00	543	2196
+		Hungarian IoU	State Base	0,758	0,791	0,731	0,976	56	84	906
+		Greedy IoU	State Base	0,75	0,791	0,69	0,97	79	84	906
+		Greedy ReID	State Base	0,73	0,81	0,48	0,95	325,00	545	2196
+		Smart Hungarian ReID	State Base	0,753	0,796	0,792	0,953	15	171	884
+		Smart Hungarian IoU	State Base	0,752	0,796	0,73	0.95	16	173	884
+		ByteTrack Hungarian IoU	Two-Stage	0,699	0,729	0,903	0,962	12	168	1.580
+		DeepSORT ReID	Cascade	0,701	0,733	0,887	0,962	13	171	1.559
+		TrackGuard 1.0	Two-Stage	0,794	0,845	0,723	0,948	27	217	727
+										
+Dataset	Sequence	Detector	Configurasi	MOTA	Recall	IDF1	Precision	IDSw	FP	FN
+MOT17	MOT17-10-SDP	Greedy ReID	Vanilla	0,69	0,82	0,48	0,89	318,00	1182	2101
+		Greedy IoU	Vanilla	0,62	0,83	0,65	0,80	164,00	2292	1979
+		Hungarian ReID	Vanilla	0,70	0,83	0,68	0,87	127,00	1447	1997
+		Hungarian IoU	Vanilla	0.69	0,83	0,63	0,86	130,00	1460	1929
+		Smart Hungarian ReID	Vanilla	0,74	0,81	0,74	0,92	99,00	801	2169
+		Smart Hungarian IoU	Vanilla	0,72	0,82	0,72	0,90	91,00	1085	2131
+		Hungarian ReID	State Base	0,86	0,90	0,83	0,96	30,00	311	812
+		Hungarian IoU	State Base	0,754	0,81	0,76	0,946	116	539	11636
+		Greedy IoU	State Base	0,749	0,81	0,64	0,946	181	539	2202
+		Greedy ReID	State Base	0,84	0,90	0,51	0,96	156,00	312	823
+		Smart Hungarian ReID	State Base	0,746	0,81	0,743	0,935	87	659	2212
+		Smart Hungarian IoU	State Base	0,746	0,81	0,71	0,935	88	656	2122
+		ByteTrack Hungarian IoU	Two-Stage	0,690	0,745	0,766	0,944	82	634	3.619
+		DeepSORT ReID	Cascade	0,658	0,784	0,829	0,871	136	1.649	3.070
+		TrackGuard 1.0	Two-Stage	0,766	0,85	0,613	0,916	79	999	1915
+										
+Dataset	Sequence	Detector	Configurasi	MOTA	Recall	IDF1	Precision	IDSw	FP	FN
+MOT17	MOT17-11-SDP	Greedy ReID	Vanilla	0,78	0,91	0,529	0,885	125,00	981	786
+		Greedy IoU	Vanilla	0,71	0,91	0,85	0,81	29,00	1719	685
+		Hungarian ReID	Vanilla	0,79	0,92	0,72	0,88	27,00	1028	671
+		Hungarian IoU	Vanilla	0,79	0,92	0,72	0.87	26,00	1055	654
+		Smart Hungarian ReID	Vanilla	0,82	0,90	0,84	0,92	27,00	758	655
+		Smart Hungarian IoU	Vanilla	0,83	0,91	0,86	0,918	15,00	682	733
+		Hungarian ReID	State Base	0,86	0,90	0,829	0,96	30,00	311	812
+		Hungarian IoU	State Base	0,861	0,901	0,85	0,96	27	311	824
+		Greedy IoU	State Base	0,85	0,901	0,75	0,96	44	313	824
+		Greedy ReID	State Base	0,84	0,90	0.51	0,96	156,00	312	823
+		Smart Hungarian ReID	State Base	0,85	0,904	0,877	0,953	12	27	1474
+		Smart Hungarian IoU	State Base	0,85	0,901	0,83	0.94	15	401	426
+		ByteTrack Hungarian IoU	Two-Stage	0,782	0,825	0,902	0,951	9	401	1.169
+		DeepSORT ReID	Cascade	0,769	0,824	0,904	0,938	4	522	1.671
+		TrackGuard 1.0	Two-Stage	0,884	0,937	0,835	0,947	8	367	438
+										
+Dataset	Sequence	Detector	Configurasi	MOTA	Recall	IDF1	Precision	IDSw	FP	FN
+MOT17	MOT17-13-SDP	Greedy ReID	Vanilla	0,59	0,78	0,49	0,85	587	1607	2439
+		Greedy IoU	Vanilla	0,48	0,79	0,568	0,744	503	3154	2348
+		Hungarian ReID	Vanilla	0,62	0,79	0,71	0.83	259	1838	2319
+		Hungarian IoU	Vanilla	0,58	0,80	0,61	0,81	475	2040	2304
+		Smart Hungarian ReID	Vanilla	0,68	0,77	0,79	0,9	211	976	2551
+		Smart Hungarian IoU	Vanilla	0,48	0,78	0,55	0,73	201	3302	2491
+		Hungarian ReID	State Base	0,70	0,78	0,755	0,955	319	565	2556
+		Hungarian IoU	State Base	0,703	0,776	0,785	0,944	303	532	2558
+		Greedy IoU	State Base	0,69	0,776	0,69	0,94	414	541	2584
+		Greedy ReID	State Base	0,67	0,78	0,48	0,94	651	574	2561
+		Smart Hungarian ReID	State Base	0,71	0,759	0,72	0,945	182	509	2778
+		Smart Hungarian IoU	State Base	0,701	0,768	0,6	0,94	176	529	2676
+		ByteTrack Hungarian IoU	Two-Stage	0,738	0,800	0,868	0,937	98	622	2.326
+		DeepSORT ReID	Cascade	0,694	0,855	0,856	0,851	127	1.747	1.685
+		TrackGuard 1.0	Two-Stage	0,719	0,826	0,611	0,909	285	950	2010
+										
+		Detector	Configurasi	MOTA	Recall	IDF1	Precision	IDSw	FP	FN
+		Greedy ReID	Vanilla	0,631	0,79	0,51	0,86	2.023	5199	23928
+		Greedy IoU	Vanilla	0,559	0,80	0,70	0,78	1.166	9645	22651
+		Hungarian ReID	Vanilla	0,659	0,80	0,70	0,86	764	5683	22766
+		Hungarian IoU	Vanilla	0,642	0,80	0,67	0,84	1.021	6144	22663
+		Smart Hungarian ReID	Vanilla	0,684	0,79	0,78	0,88	549	4338	11033
+		Smart Hungarian IoU	Vanilla	0,641	0,80	0,73	0,85	525	6132	24816
+		Hungarian ReID	State Base	0,735	0,80	0,78	0,94	761	2042	24585
+		Hungarian IoU	State Base	0,720	0,83	0,78	0,95	789	1770	34151
+		Greedy IoU	State Base	0,711	0,78	0,69	0,94	1.207	1778	24745
+		Greedy ReID	State Base	0,722	0,80	0,52	0,94	1.806	2048	24388
+		Smart Hungarian ReID	State Base	0,717	0,77	0,77	0,93	371	1666	25089
+		TrackGuard with SHA 	State Base	0,716	0,79	0,74	0,94	373	2098	24365
+		ByteTrack Hungarian IoU	Two-Stage	0,672	0,74	0,88	0,93	310	2.458	33204
+		DeepSORT ReID	Cascade	0,655	0,74	0,87	0,90	439	5.583	31882
+		TrackGuard ADP + SHA	Two-Stage	0,748	0,82	0,70	0,92	558	3410	19030

@@ -185,9 +185,31 @@ class DetectTypeSelect(discord.ui.Select):
     def __init__(self, parent_view):
         self.parent_view = parent_view
         options = [
-            discord.SelectOption(label="違規偵測", value="violation", description="使用 YOLO 偵測違規車輛"),
-            discord.SelectOption(label="逆向偵測", value="reverse", description="偵測逆向行駛（需該路段開啟 reverse_enabled）"),
-            discord.SelectOption(label="車禍偵測", value="accident", description="偵測車禍 / 碰撞異常"),
+            discord.SelectOption(
+                label="違規偵測",
+                value="violation",
+                description="使用 YOLO 偵測違規車輛"
+            ),
+            discord.SelectOption(
+                label="舊版逆向偵測",
+                value="reverse",
+                description="使用原本 DB road config 的逆向偵測"
+            ),
+            discord.SelectOption(
+                label="TrackGuard 逆向偵測",
+                value="trackguard_wrong_way",
+                description="使用新版 TrackGuard wrong_way 偵測"
+            ),
+            discord.SelectOption(
+                label="車禍偵測",
+                value="accident",
+                description="TrackGuard collision 偵測"
+            ),
+            discord.SelectOption(
+                label="TrackGuard 全部偵測",
+                value="trackguard_all",
+                description="TrackGuard collision + wrong_way + 其他行為"
+            ),
         ]
         super().__init__(placeholder="請選擇偵測類型", min_values=1, max_values=1, options=options)
 
@@ -267,6 +289,7 @@ class StopDetectionView(discord.ui.View):
 # ============================
 
 VIDEO_BASE_DIR = "/home/inf431/datasets/sources/video"
+RUNNING_TRACKGUARD_TASKS = {}
 
 def build_video_tree(base_dir=VIDEO_BASE_DIR, max_chars=1600):
     lines = ["."]
@@ -370,9 +393,12 @@ class Notify(Cog_Extension):
         view.flush_task = None
 
         report_channel_id = get_camera_channel_id(camera)
+        print(f"[DEBUG] report_channel_id = {report_channel_id}")
 
         try:
+            print("[DEBUG] before get_report_channel")
             channel = await get_report_channel(interaction.client, report_channel_id)
+            print(f"[DEBUG] after get_report_channel, channel = {channel}")
         except Exception as e:
             print(f"[ERROR] 無法取得回報頻道 channel_id={report_channel_id}：{repr(e)}")
             try:
@@ -391,9 +417,13 @@ class Notify(Cog_Extension):
             if detect_type == "violation":
                 type_text = "違規偵測"
             elif detect_type == "reverse":
-                type_text = "逆向偵測"
+                type_text = "舊版逆向偵測"
+            elif detect_type == "trackguard_wrong_way":
+                type_text = "TrackGuard 逆向偵測"
             elif detect_type == "accident":
                 type_text = "車禍偵測"
+            elif detect_type == "trackguard_all":
+                type_text = "TrackGuard 全部偵測"
             else:
                 type_text = detect_type
 
@@ -421,10 +451,25 @@ class Notify(Cog_Extension):
                 print(f"[ERROR] 無可傳送圖片，original={original_img_path}, annotated={annotated_img_path}")
                 return
 
-            sent_msg = await channel.send(
-                content=msg,
-                file=discord.File(send_path)
-            )
+            print(f"[SEND] channel={channel} id={channel.id}")
+            print(f"[SEND] send_path={send_path}")
+            print(f"[SEND] exists={os.path.exists(send_path) if send_path else False}")
+            print(f"[SEND] class_names={class_names}")
+
+            try:
+                sent_msg = await channel.send(
+                    content=msg,
+                    file=discord.File(send_path)
+                )
+                print(f"[SEND] success message_id={sent_msg.id}")
+
+            except Exception as e:
+                print(f"[SEND ERROR] {repr(e)}")
+                try:
+                    await channel.send(f"🚫 圖片傳送失敗：{repr(e)}")
+                except Exception as e2:
+                    print(f"[SEND ERROR 2] {repr(e2)}")
+                return
 
             image_url = sent_msg.attachments[0].url
             note_text = f"{detect_type} stream detection"
@@ -460,39 +505,110 @@ class Notify(Cog_Extension):
 
         type_label_map = {
             "violation": "違規",
-            "reverse": "逆向",
+            "reverse": "舊版逆向",
+            "trackguard_wrong_way": "TrackGuard 逆向",
             "accident": "車禍",
+            "trackguard_all": "TrackGuard 全部",
         }
 
+        print("[DEBUG] before interaction.response.send_message")
         await interaction.response.send_message(
             f"📡 開始偵測 `{selected_road}`（{type_label_map.get(detect_type, detect_type)}）...\n"
             f"📨 回報頻道：{channel.mention}",
             view=view
         )
+        print("[DEBUG] after interaction.response.send_message")
 
         async def detection_task():
-            if detect_type == "violation":
-                await self.run_live_detection(stream_url, send_violation, view, channel)
-            elif detect_type == "reverse":
-                await self.run_reverse_detection(stream_url, send_violation, view, reverse_cfg, channel)
-            elif detect_type == "accident":
-                if stream_url.startswith("file://"):
-                    video_path = stream_url.replace("file://", "")
+            print(f"[DEBUG] detection_task started, detect_type={detect_type}, stream_url={stream_url}")
+
+            try:
+                if detect_type == "violation":
+                    print("[DEBUG] enter violation")
+                    await self.run_live_detection(stream_url, send_violation, view, channel)
+
+                elif detect_type == "reverse":
+                    print("[DEBUG] enter reverse")
+                    await self.run_reverse_detection(stream_url, send_violation, view, reverse_cfg, channel)
+                
+                elif detect_type == "trackguard_wrong_way":
+                    print("[DEBUG] enter trackguard_wrong_way")
+
+                    if stream_url.startswith("file://"):
+                        video_path = stream_url.replace("file://", "")
+                    else:
+                        video_path = stream_url
+
+                    print(f"[DEBUG] wrong_way video_path={video_path}")
+                    await self.run_trackguard_detection(video_path, "wrong_way", send_violation, view, channel)
+
+                elif detect_type == "accident":
+                    print("[DEBUG] enter accident")
+                    if stream_url.startswith("file://"):
+                        video_path = stream_url.replace("file://", "")
+                    else:
+                        video_path = stream_url
+
+                    print(f"[DEBUG] accident video_path={video_path}")
+                    await self.run_trackguard_detection(video_path, "collision", send_violation, view, channel)
+
+                elif detect_type in ("trackguard_all", "all"):
+                    print("[DEBUG] enter trackguard_all")
+                    if stream_url.startswith("file://"):
+                        video_path = stream_url.replace("file://", "")
+                    else:
+                        video_path = stream_url
+
+                    print(f"[DEBUG] all video_path={video_path}")
+                    await self.run_trackguard_detection(video_path, "all", send_violation, view, channel)
+
                 else:
-                    video_path = stream_url
+                    await channel.send(f"❌ 未知偵測類型：{detect_type}")
+                    return
 
-                await self.run_trackguard_detection(video_path, send_violation, view, channel)
-            else:
-                await channel.send(f"❌ 未知偵測類型：{detect_type}")
-                return
+                if view.violations:
+                    await self.flush_violations_later(view, delay=0)
 
-            if view.violations:
-                await self.flush_violations_later(view, delay=0)
+                await channel.send("✅ 偵測結束。")
 
-            await channel.send("✅ 偵測結束。")
+            except asyncio.CancelledError:
+                print("[DEBUG] detection_task cancelled inside")
+                raise
 
+            except Exception as e:
+                print(f"[ERROR] detection_task inner crashed: {repr(e)}")
+                await channel.send(f"🚫 偵測任務發生錯誤：{str(e)}")
+                raise
+
+
+        task_key = f"{camera_id}:{detect_type}"
+
+        old_task = RUNNING_TRACKGUARD_TASKS.get(task_key)
+        if old_task and not old_task.done():
+            await channel.send(
+                f"⚠️ `{selected_road}` 的 `{type_label_map.get(detect_type, detect_type)}` 正在執行中，請先按「中止偵測」。"
+            )
+            return
+
+
+        def task_done_callback(task: asyncio.Task):
+            RUNNING_TRACKGUARD_TASKS.pop(task_key, None)
+            print(f"[DEBUG] cleared running task: {task_key}")
+
+            try:
+                task.result()
+            except asyncio.CancelledError:
+                print("[DEBUG] detection_task cancelled")
+            except Exception as e:
+                print(f"[ERROR] detection_task crashed: {repr(e)}")
+
+
+        print("[DEBUG] before create detection_task")
         view.task = asyncio.create_task(detection_task())
-
+        RUNNING_TRACKGUARD_TASKS[task_key] = view.task
+        view.task.add_done_callback(task_done_callback)
+        print("[DEBUG] after create detection_task")
+        
     async def run_reverse_detection(self, video_path, send_fn, view: StopDetectionView, reverse_cfg: dict, report_channel, interval=1):
         async def on_error(error_msg: str):
             await report_channel.send(f"⚠️ 逆向偵測錯誤：{error_msg}")
@@ -510,8 +626,17 @@ class Notify(Cog_Extension):
                 model_path=model_path,
                 config=config
             ):
+                
                 print("[BOT] 收到逆向截圖:", img_path, class_names)
-                await send_fn(img_path, class_names)
+                print("[BOT] reverse img exists:", os.path.exists(img_path))
+
+                try:
+                    await send_fn(img_path, class_names)
+                    print("[BOT] reverse send_fn finished")
+                except Exception as e:
+                    print(f"[BOT SEND_FN ERROR] {repr(e)}")
+                    await report_channel.send(f"🚫 逆向圖片送出失敗：{repr(e)}")
+
                 if view.get_stop_state():
                     break
 
@@ -549,16 +674,27 @@ class Notify(Cog_Extension):
         except Exception as e:
             await report_channel.send(f"🚫 車禍偵測中斷錯誤：{str(e)}")
 
-    async def run_trackguard_detection(self, video_path, send_fn, view: StopDetectionView, report_channel):
+    async def run_trackguard_detection(self, video_path, trackguard_detect_type, send_fn, view: StopDetectionView, report_channel):
         from services.trackguard_runner import run_trackguard_process
 
         async def on_event(event: dict):
             image_path = event.get("image_path")
             annotated_image_path = event.get("annotated_image_path")
 
-            class_names = [
-                f"{event.get('class_primary', 'unknown')} vs {event.get('class_secondary', 'unknown')}"
-            ]
+            behaviour_type = event.get("behaviour_type") or event.get("event") or trackguard_detect_type
+
+            if behaviour_type == "wrong_way":
+                class_names = [
+                    f"{event.get('class_primary', event.get('class_name', 'unknown'))} wrong_way"
+                ]
+            elif behaviour_type == "collision":
+                class_names = [
+                    f"{event.get('class_primary', 'unknown')} vs {event.get('class_secondary', 'unknown')}"
+                ]
+            else:
+                class_names = [
+                    f"{event.get('class_primary', event.get('class_name', 'unknown'))} {behaviour_type}"
+                ]
 
             if image_path and os.path.exists(image_path):
                 await send_fn(image_path, class_names, annotated_image_path)
@@ -571,7 +707,10 @@ class Notify(Cog_Extension):
                 return
 
         try:
-            await run_trackguard_process(video_path, on_event)
+            print(f"[DEBUG] TrackGuard video_path={video_path}")
+            print(f"[DEBUG] TrackGuard detect_type={trackguard_detect_type}")
+
+            await run_trackguard_process(video_path, trackguard_detect_type, on_event)
         except asyncio.CancelledError:
             pass
         except Exception as e:

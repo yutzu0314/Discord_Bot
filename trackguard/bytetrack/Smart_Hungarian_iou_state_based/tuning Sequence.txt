@@ -1,0 +1,123 @@
+
+SDP-02
+
+self.uncertainty_thresholds = {
+    'sparse': 0.28,
+    'normal': 0.20,     # Looser untuk catch more matches
+    'crowded': 0.12,    
+    'extreme': 0.06
+}
+self.recovery_thresholds = {
+    'sparse': 0.36,
+    'normal': 0.26,     # Very aggressive recovery
+    'crowded': 0.18,
+    'extreme': 0.12
+}
+
+SDP-04
+
+# BALANCED: Quality thresholds dengan target IDF1 > 0.6
+self.uncertainty_thresholds = {
+    'sparse': 0.25,     # Dilonggarkan dari 0.19 → 0.25 (+32%)
+    'normal': 0.18,     # Dilonggarkan dari 0.12 → 0.18 (+50%) 
+    'crowded': 0.08,    # Dilonggarkan dari 0.035 → 0.08 (+129%)
+    'extreme': 0.06     # Dilonggarkan dari 0.04 → 0.06 (+50%)
+}
+
+
+     self.recovery_thresholds = {
+            'sparse': 0.35,     # Lebih longgar untuk recovery
+            'normal': 0.25,     
+            'crowded': 0.15,    
+            'extreme': 0.12     
+        }
+
+
+
+SDP-05
+
+self.uncertainty_thresholds = {
+    'sparse': 0.36,     # Very loose untuk maximize matches
+    'normal': 0.32,     # Ultra-loose main threshold
+    'crowded': 0.28,    # Loose even for crowded
+    'extreme': 0.22     # Still loose untuk extreme
+}
+self.recovery_thresholds = {
+    'sparse': 0.46,     # Maximum recovery untuk sparse
+    'normal': 0.42,     # Very aggressive recovery
+    'crowded': 0.36,    # Strong recovery
+    'extreme': 0.28     # Moderate recovery
+}
+
+SDP-09
+
+self.uncertainty_thresholds = {
+    'sparse': 0.28,     # Looser untuk handle reflections
+    'normal': 0.22,     # Higher tolerance untuk indoor artifacts
+    'crowded': 0.16,    # Moderate crowded dengan reflections
+    'extreme': 0.12     # Conservative extreme
+}
+self.recovery_thresholds = {
+    'sparse': 0.36,     # Strong recovery untuk sparse indoor
+    'normal': 0.30,     # Aggressive recovery untuk reflections
+    'crowded': 0.22,    # Moderate crowded recovery
+    'extreme': 0.16     # Conservative extreme recovery
+}
+
+SDP-10
+
+self.uncertainty_thresholds = {
+    'sparse': 0.45,     # Extreme loose sparse
+    'normal': 0.36,     # Extreme loose main
+    'crowded': 0.30,    # Very loose crowded
+    'extreme': 0.24     # Loose extreme
+}
+self.recovery_thresholds = {
+    'sparse': 0.55,     # Maximum sparse recovery
+    'normal': 0.46,     # Maximum main recovery
+    'crowded': 0.38,    # Maximum crowded recovery
+    'extreme': 0.30     # Strong extreme recovery
+}
+
+SDP 11
+
+self.uncertainty_thresholds = {
+    'sparse': 0.42,     # Maximum loose untuk moving indoor
+    'normal': 0.34,     # Maximum main threshold
+    'crowded': 0.28,    # Very loose crowded
+    'extreme': 0.22     # Loose extreme
+}
+self.recovery_thresholds = {
+    'sparse': 0.52,     # Maximum sparse recovery
+    'normal': 0.44,     # Maximum main recovery
+    'crowded': 0.36,    # Maximum crowded recovery
+    'extreme': 0.28     # Strong extreme recovery
+}
+
+SDP 13
+
+self.uncertainty_thresholds = {
+    'sparse': 0.30,     # Looser untuk moving camera compensation
+    'normal': 0.22,     # Higher tolerance untuk motion blur
+    'crowded': 0.18,    # Moderate crowded dengan motion
+    'extreme': 0.14     # Moderate extreme
+}
+self.recovery_thresholds = {
+    'sparse': 0.38,     # Strong recovery untuk motion
+    'normal': 0.30,     # Aggressive motion recovery
+    'crowded': 0.24,    # Moderate crowded recovery
+    'extreme': 0.18     # Conservative extreme recovery
+}
+
+self.uncertainty_thresholds = {
+    'sparse': 0.26,     # Moderate sparse untuk high viewpoint
+    'normal': 0.18,     # Main threshold untuk perspective distortion
+    'crowded': 0.14,    # Moderate crowded high angle
+    'extreme': 0.10     # Conservative extreme
+}
+self.recovery_thresholds = {
+    'sparse': 0.34,     # Controlled sparse recovery
+    'normal': 0.25,     # Moderate recovery untuk viewpoint
+    'crowded': 0.20,    # Conservative crowded recovery
+    'extreme': 0.14     # Minimal extreme recovery
+}
