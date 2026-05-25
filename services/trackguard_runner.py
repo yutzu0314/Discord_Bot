@@ -7,9 +7,38 @@ import cv2
 
 TRACKGUARD_ROOT = "/home/inf431/Discord_Bot/trackguard"
 TRACKGUARD_MAIN = os.path.join(TRACKGUARD_ROOT, "main.py")
+EVENT_DIR = "/home/inf431/Discord_Bot/trackguard_events"
 
 
+def cleanup_old_events_for_video(event_dir: str, video_path: str):
+    if not os.path.exists(event_dir):
+        return
+
+    abs_video = os.path.abspath(video_path)
+
+    for filename in os.listdir(event_dir):
+        if not filename.endswith(".json"):
+            continue
+
+        path = os.path.join(event_dir, filename)
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                event = json.load(f)
+
+            event_video = event.get("source_video_abs") or event.get("source_video") or ""
+
+            if event_video and os.path.abspath(event_video) == abs_video:
+                os.remove(path)
+                print(f"[EVENT CLEANUP] removed old event: {filename}")
+
+        except Exception as e:
+            print(f"[EVENT CLEANUP ERROR] {filename}: {repr(e)}")
+            
 async def run_trackguard_process(video_path: str, detect_type: str, on_event=None):
+    
+    cleanup_old_events_for_video(EVENT_DIR, video_path)
+    
     proc = await asyncio.create_subprocess_exec(
         "/home/inf431/Discord_Bot/venv/bin/python",
         "/home/inf431/Discord_Bot/trackguard/main.py",
@@ -23,7 +52,6 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
         stderr=asyncio.subprocess.PIPE,
     )
     
-    EVENT_DIR = "/home/inf431/Discord_Bot/trackguard_events"
 
 
     def make_event_snapshot(event: dict) -> dict:
@@ -86,77 +114,14 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
 
         return event
 
-
-    # async def read_event_files():
-    #     print(f"[EVENT WATCHER] started, dir={EVENT_DIR}")
-
-    #     start_ns = time.time_ns()
-    #     processed = {}
-    #     tick = 0
-
-    #     while proc.returncode is None:
-    #         tick += 1
-
-    #         try:
-    #             if not os.path.exists(EVENT_DIR):
-    #                 print(f"[EVENT WATCHER] dir not exists: {EVENT_DIR}")
-    #                 await asyncio.sleep(0.5)
-    #                 continue
-
-    #             files = [
-    #                 f for f in os.listdir(EVENT_DIR)
-    #                 if f.endswith(".json")
-    #             ]
-
-    #             if tick % 10 == 0:
-    #                 print(f"[EVENT WATCHER] json files={len(files)}")
-
-    #             for filename in sorted(files):
-    #                 path = os.path.join(EVENT_DIR, filename)
-
-    #                 try:
-    #                     stat = os.stat(path)
-    #                 except FileNotFoundError:
-    #                     continue
-
-    #                 mtime_ns = stat.st_mtime_ns
-
-    #                 if mtime_ns < start_ns:
-    #                     continue
-
-    #                 if processed.get(filename) == mtime_ns:
-    #                     continue
-
-    #                 processed[filename] = mtime_ns
-
-    #                 print(f"[EVENT WATCHER] new/updated file={filename}")
-
-    #                 await asyncio.sleep(0.05)
-
-    #                 try:
-    #                     with open(path, "r", encoding="utf-8") as f:
-    #                         event = json.load(f)
-
-    #                     print(f"[PARSED EVENT FILE] {filename}")
-    #                     print(event)
-
-    #                     event = make_event_snapshot(event)
-
-    #                     if on_event is not None:
-    #                         await on_event(event)
-
-    #                 except Exception as e:
-    #                     print(f"[EVENT FILE ERROR] {path}: {repr(e)}")
-
-    #         except Exception as e:
-    #             print(f"[EVENT WATCHER ERROR] {repr(e)}")
-
-    #         await asyncio.sleep(0.2)
-    
     async def read_event_files():
         print(f"[EVENT WATCHER] started, dir={EVENT_DIR}")
 
-        processed = set()
+        # 記錄本次 TrackGuard 開始監看的時間
+        start_ns = time.time_ns()
+
+        # key: filename, value: mtime_ns
+        processed = {}
 
         while proc.returncode is None:
             try:
@@ -170,47 +135,55 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
                     if f.endswith(".json")
                 ]
 
-                print(f"[EVENT WATCHER] json files={len(files)}")
-
                 for filename in sorted(files):
                     path = os.path.join(EVENT_DIR, filename)
 
                     try:
+                        stat = os.stat(path)
+                    except FileNotFoundError:
+                        continue
+
+                    mtime_ns = stat.st_mtime_ns
+
+                    # 只處理本次 runner 啟動後才建立/更新的檔案
+                    if mtime_ns < start_ns:
+                        continue
+
+                    # 同一個檔案同一個修改時間已處理過，就跳過
+                    if processed.get(filename) == mtime_ns:
+                        continue
+
+                    processed[filename] = mtime_ns
+
+                    # 避免 TrackGuard 還沒寫完 JSON
+                    await asyncio.sleep(0.05)
+
+                    try:
                         with open(path, "r", encoding="utf-8") as f:
                             event = json.load(f)
+
+                        event_video = event.get("source_video_abs") or event.get("source_video") or ""
+
+                        # 避免讀到其他影片或其他 camera 的事件
+                        if event_video and os.path.abspath(event_video) != os.path.abspath(video_path):
+                            continue
+
+                        print(f"[PARSED EVENT FILE] {filename}")
+                        print(event)
+
+                        event = make_event_snapshot(event)
+
+                        if on_event is not None:
+                            await on_event(event)
+
                     except Exception as e:
-                        print(f"[EVENT WATCHER] skip unreadable {filename}: {repr(e)}")
-                        continue
-
-                    event_video = event.get("source_video_abs") or event.get("source_video") or ""
-
-                    if not event_video:
-                        continue
-
-                    # 只吃這次正在跑的影片
-                    if os.path.abspath(event_video) != os.path.abspath(video_path):
-                        continue
-
-                    event_id = event.get("event_id") or filename
-
-                    if event_id in processed:
-                        continue
-
-                    processed.add(event_id)
-
-                    print(f"[PARSED EVENT FILE] {filename}")
-                    print(event)
-
-                    event = make_event_snapshot(event)
-
-                    if on_event is not None:
-                        await on_event(event)
+                        print(f"[EVENT FILE ERROR] {path}: {repr(e)}")
 
             except Exception as e:
                 print(f"[EVENT WATCHER ERROR] {repr(e)}")
 
-            await asyncio.sleep(0.5)
-    
+            await asyncio.sleep(0.2)
+            
     async def read_stdout():
         IMPORTANT_KEYWORDS = [
             "SUDDEN DECELERATION",
