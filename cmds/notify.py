@@ -8,8 +8,6 @@ import asyncio
 import discord
 from services.violations_service import save_violation
 from services.camera_service import list_active_cameras
-from services.reverse_service import get_active_reverse_config
-from detect.reverse_identification.reverse_detector import detect_reverse_live
 
 
 with open("setting.json", "r", encoding="utf-8") as f:
@@ -191,12 +189,7 @@ class DetectTypeSelect(discord.ui.Select):
                 description="使用 YOLO 偵測違規車輛"
             ),
             discord.SelectOption(
-                label="舊版逆向偵測",
-                value="reverse",
-                description="使用原本 DB road config 的逆向偵測"
-            ),
-            discord.SelectOption(
-                label="TrackGuard 逆向偵測",
+                label="逆向偵測",
                 value="trackguard_wrong_way",
                 description="使用新版 TrackGuard wrong_way 偵測"
             ),
@@ -377,16 +370,6 @@ class Notify(Cog_Extension):
             )
             return
 
-        reverse_cfg = None
-        if detect_type == "reverse":
-            reverse_cfg = await get_active_reverse_config(camera_id)
-            if not reverse_cfg:
-                await interaction.response.send_message(
-                    f"⚠️ `{selected_road}` 尚未在資料庫啟用逆向設定（camera_reverse_profiles / zones）。",
-                    ephemeral=True
-                )
-                return
-
         view = StopDetectionView(self, interaction.user.id)
         view.set_stop_state(False)
         view.violations = []
@@ -416,10 +399,8 @@ class Notify(Cog_Extension):
 
             if detect_type == "violation":
                 type_text = "違規偵測"
-            elif detect_type == "reverse":
-                type_text = "舊版逆向偵測"
             elif detect_type == "trackguard_wrong_way":
-                type_text = "TrackGuard 逆向偵測"
+                type_text = "逆向偵測"
             elif detect_type == "accident":
                 type_text = "車禍偵測"
             elif detect_type == "trackguard_all":
@@ -505,8 +486,7 @@ class Notify(Cog_Extension):
 
         type_label_map = {
             "violation": "違規",
-            "reverse": "舊版逆向",
-            "trackguard_wrong_way": "TrackGuard 逆向",
+            "trackguard_wrong_way": "逆向",
             "accident": "車禍",
             "trackguard_all": "TrackGuard 全部",
         }
@@ -526,10 +506,6 @@ class Notify(Cog_Extension):
                 if detect_type == "violation":
                     print("[DEBUG] enter violation")
                     await self.run_live_detection(stream_url, send_violation, view, channel)
-
-                elif detect_type == "reverse":
-                    print("[DEBUG] enter reverse")
-                    await self.run_reverse_detection(stream_url, send_violation, view, reverse_cfg, channel)
                 
                 elif detect_type == "trackguard_wrong_way":
                     print("[DEBUG] enter trackguard_wrong_way")
@@ -609,42 +585,6 @@ class Notify(Cog_Extension):
         view.task.add_done_callback(task_done_callback)
         print("[DEBUG] after create detection_task")
         
-    async def run_reverse_detection(self, video_path, send_fn, view: StopDetectionView, reverse_cfg: dict, report_channel, interval=1):
-        async def on_error(error_msg: str):
-            await report_channel.send(f"⚠️ 逆向偵測錯誤：{error_msg}")
-
-        profile = reverse_cfg.get("profile", "more")
-        model_path = jdata.get("yolo_model", "detect/reverse_identification/yolov8n.pt")
-        config = reverse_cfg
-
-        try:
-            async for img_path, class_names in detect_reverse_live(
-                video_path,
-                on_error=on_error,
-                interval=interval,
-                profile=profile,
-                model_path=model_path,
-                config=config
-            ):
-                
-                print("[BOT] 收到逆向截圖:", img_path, class_names)
-                print("[BOT] reverse img exists:", os.path.exists(img_path))
-
-                try:
-                    await send_fn(img_path, class_names)
-                    print("[BOT] reverse send_fn finished")
-                except Exception as e:
-                    print(f"[BOT SEND_FN ERROR] {repr(e)}")
-                    await report_channel.send(f"🚫 逆向圖片送出失敗：{repr(e)}")
-
-                if view.get_stop_state():
-                    break
-
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            await report_channel.send(f"🚫 逆向偵測中斷錯誤：{str(e)}")
-
     async def run_live_detection(self, video_path, send_fn, view: StopDetectionView, report_channel, interval=10):
         async def on_error(error_msg: str):
             await report_channel.send(f"⚠️ 錯誤：{error_msg}")

@@ -46,9 +46,8 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
         "--model", "/home/inf431/Discord_Bot/yolo_data/yolo11n.pt",
         "--physics",
         "--detect", detect_type,
-        "--conf", "70",
-        "--min-hits", "10",
-        "--show",
+        "--conf", "80",
+        "--min-hits", "15",
     ]
 
     # 只有逆向或全部偵測才顯示方向場
