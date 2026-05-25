@@ -39,7 +39,7 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
     
     cleanup_old_events_for_video(EVENT_DIR, video_path)
     
-    proc = await asyncio.create_subprocess_exec(
+    cmd = [
         "/home/inf431/Discord_Bot/venv/bin/python",
         "/home/inf431/Discord_Bot/trackguard/main.py",
         "--video", video_path,
@@ -48,6 +48,15 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
         "--detect", detect_type,
         "--conf", "70",
         "--min-hits", "10",
+        "--show",
+    ]
+
+    # 只有逆向或全部偵測才顯示方向場
+    if detect_type in ("wrong_way", "all"):
+        cmd.append("--show-direction-field")
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -114,6 +123,35 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
 
         return event
 
+    def event_matches_detect_type(event: dict, detect_type: str) -> bool:
+        behaviour_type = (
+            event.get("behaviour_type")
+            or event.get("event")
+            or event.get("raw_event", {}).get("behaviour_type")
+            or ""
+        )
+
+        behaviour_type = str(behaviour_type)
+
+        if detect_type == "collision":
+            return behaviour_type == "collision"
+
+        if detect_type == "wrong_way":
+            return behaviour_type == "wrong_way"
+
+        if detect_type == "all":
+            return behaviour_type in {
+                "collision",
+                "wrong_way",
+                "motorcycle_fallen",
+                "fallen",
+                "turn",
+                "brake",
+                "decelerating",
+            }
+
+        return behaviour_type == detect_type
+
     async def read_event_files():
         print(f"[EVENT WATCHER] started, dir={EVENT_DIR}")
 
@@ -167,7 +205,14 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
                         # 避免讀到其他影片或其他 camera 的事件
                         if event_video and os.path.abspath(event_video) != os.path.abspath(video_path):
                             continue
-
+                        
+                        if not event_matches_detect_type(event, detect_type):
+                            print(
+                                f"[EVENT WATCHER] skip event by detect_type={detect_type}, "
+                                f"event={event.get('event')}, behaviour={event.get('behaviour_type')}"
+                            )
+                            continue
+                        
                         print(f"[PARSED EVENT FILE] {filename}")
                         print(event)
 
@@ -232,10 +277,18 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
                     or "image_path" in event
                     or "annotated_image_path" in event
                 ):
-                    print("[PARSED EVENT]", event)
-                    if on_event is not None:
-                        await on_event(event)
-                continue
+                    
+                    if event_matches_detect_type(event, detect_type):
+                        print("[PARSED EVENT]", event)
+                        if on_event is not None:
+                            await on_event(event)
+                    else:
+                        print(
+                            f"[STDOUT EVENT SKIP] detect_type={detect_type}, "
+                            f"event={event.get('event')}, behaviour={event.get('behaviour_type')}"
+                        )
+                    continue
+            
             except json.JSONDecodeError:
                 pass
 
