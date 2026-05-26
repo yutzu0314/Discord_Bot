@@ -668,4 +668,10 @@ class Notify(Cog_Extension):
 
 
 async def setup(bot):
+    try:
+        from services.trackguard_runner import print_trackguard_debug
+        print_trackguard_debug()
+    except Exception as e:
+        print(f"⚠️ TrackGuard debug init failed: {repr(e)}")
+
     await bot.add_cog(Notify(bot))

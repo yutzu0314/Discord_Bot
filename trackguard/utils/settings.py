@@ -9,6 +9,7 @@ Simplified version - no MOT17 dependencies.
 import os
 import torch
 from typing import Dict, Any
+from class_config import TARGET_CLASSES, CLASS_IDS
 
 
 class Settings:
@@ -47,13 +48,8 @@ class Settings:
         'half_precision': False,
         
         # Multi-class detection for traffic (LTE-TrackGuard)
-        # COCO class IDs
-        # 'target_classes': ['car', 'motorcycle', 'truck', 'bus', 'person'],
-        # 'class_ids': [2, 3, 7, 5, 0],  
-        
-        # DCBOT
-        'target_classes': ['bus', 'car', 'truck'],
-        'class_ids': [0, 1, 2],  
+        'target_classes': TARGET_CLASSES,
+        'class_ids': CLASS_IDS,
         
         # Class-specific minimum sizes (width x height in pixels)
         'min_bbox_sizes': {

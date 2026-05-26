@@ -4,10 +4,52 @@ import asyncio
 import tempfile
 import time
 import cv2
+import sys
 
 TRACKGUARD_ROOT = "/home/inf431/Discord_Bot/trackguard"
 TRACKGUARD_MAIN = os.path.join(TRACKGUARD_ROOT, "main.py")
 EVENT_DIR = "/home/inf431/Discord_Bot/trackguard_events"
+
+TRACKGUARD_ROOT = "/home/inf431/Discord_Bot/trackguard"
+
+if TRACKGUARD_ROOT not in sys.path:
+    sys.path.insert(0, TRACKGUARD_ROOT)
+
+from trackguard.class_config import TRACKGUARD_MODEL
+
+def print_trackguard_debug():
+    print("=== DEBUG TRACKGUARD ===")
+    print(f"TrackGuard root: {TRACKGUARD_ROOT}")
+    print(f"TrackGuard main: {TRACKGUARD_MAIN}")
+    print(f"TrackGuard model: {TRACKGUARD_MODEL}")
+    print(f"TrackGuard events dir: {EVENT_DIR}")
+    print(f"TrackGuard results dir: {os.path.join(TRACKGUARD_ROOT, 'results')}")
+    print(f"TrackGuard main exists: {os.path.exists(TRACKGUARD_MAIN)}")
+    print(f"TrackGuard model exists: {os.path.exists(TRACKGUARD_MODEL)}")
+    print(f"TrackGuard events dir exists: {os.path.exists(EVENT_DIR)}")
+
+    try:
+        import sys
+        if TRACKGUARD_ROOT not in sys.path:
+            sys.path.insert(0, TRACKGUARD_ROOT)
+
+        from trackguard.class_config import (
+            VEHICLE_CLASSES,
+            PERSON_CLASSES,
+            WRONG_WAY_VEHICLE_CLASSES,
+            COLLISION_VEHICLE_CLASSES,
+        )
+
+        print("TrackGuard class_config: OK")
+        print(f"▶ Vehicle classes: {sorted(VEHICLE_CLASSES)}")
+        print(f"▶ Person classes excluded: {sorted(PERSON_CLASSES)}")
+        print(f"▶ Wrong-way vehicle classes: {sorted(WRONG_WAY_VEHICLE_CLASSES)}")
+        print(f"▶ Collision vehicle classes: {sorted(COLLISION_VEHICLE_CLASSES)}")
+
+    except Exception as e:
+        print(f"TrackGuard class_config: ERROR {repr(e)}")
+
+    print("========================")
 
 
 def cleanup_old_events_for_video(event_dir: str, video_path: str):
@@ -39,20 +81,33 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
     
     cleanup_old_events_for_video(EVENT_DIR, video_path)
     
+    output_dir = os.path.join(TRACKGUARD_ROOT, "results")
+    os.makedirs(output_dir, exist_ok=True)
+
+    timestamp = int(time.time())
+    output_path = os.path.join(
+        output_dir,
+        f"dcbot_{detect_type}_{timestamp}.mp4"
+    )
+    
     cmd = [
         "/home/inf431/Discord_Bot/venv/bin/python",
         "/home/inf431/Discord_Bot/trackguard/main.py",
         "--video", video_path,
-        "--model", "/home/inf431/Discord_Bot/yolo_data/yolo11n.pt",
+        "--model", TRACKGUARD_MODEL,
         "--physics",
         "--detect", detect_type,
-        "--conf", "80",
-        "--min-hits", "15",
+        "--conf", "70",
+        "--min-hits", "10",
+        "--output", output_path,
+        "--show",
     ]
 
     # 只有逆向或全部偵測才顯示方向場
     if detect_type in ("wrong_way", "all"):
         cmd.append("--show-direction-field")
+
+    print("[TrackGuard runner] cmd =", " ".join(cmd))
 
     proc = await asyncio.create_subprocess_exec(
         *cmd,

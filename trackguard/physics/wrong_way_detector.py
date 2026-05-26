@@ -29,6 +29,11 @@ from dataclasses import dataclass, field
 from typing import Deque, Dict, List, Optional, Tuple
 
 import numpy as np
+from class_config import (
+    is_vehicle_class,
+    is_person_class,
+    is_wrong_way_vehicle_class,
+)
 
 
 @dataclass
@@ -285,6 +290,46 @@ def compute_angle_diff_deg(a: float, b: float) -> float:
     return min(diff, 360.0 - diff)
 
 
+def get_track_class_name(track) -> str:
+    """
+    Extract class name from TrackGuard / ByteTrack track object.
+    """
+    # 1. track object attributes
+    for attr in ("class_name", "cls_name", "label", "name"):
+        if hasattr(track, attr):
+            value = getattr(track, attr)
+            if value is not None:
+                return str(value).lower()
+
+    # 2. current_detection dict
+    det = getattr(track, "current_detection", None)
+    if isinstance(det, dict):
+        return str(
+            det.get("class_name")
+            or det.get("class")
+            or det.get("label")
+            or det.get("name")
+            or det.get("category")
+            or "unknown"
+        ).lower()
+
+    # 3. track itself is dict
+    if isinstance(track, dict):
+        return str(
+            track.get("class_name")
+            or track.get("class")
+            or track.get("label")
+            or track.get("name")
+            or track.get("category")
+            or "unknown"
+        ).lower()
+
+    return "unknown"
+
+def is_vehicle_track_for_wrong_way(track) -> bool:
+    class_name = get_track_class_name(track)
+    return is_wrong_way_vehicle_class(class_name)
+
 class WrongWayDetector:
     """
     TrackGuard native wrong-way detector.
@@ -400,14 +445,7 @@ class WrongWayDetector:
         return (x1 + x2) / 2.0, (y1 + y2) / 2.0
 
     def _get_class_name(self, track) -> str:
-        current_detection = getattr(track, "current_detection", None)
-
-        if isinstance(current_detection, dict):
-            for key in ["class_name", "label", "class", "category"]:
-                if key in current_detection:
-                    return str(current_detection[key])
-
-        return "vehicle"
+        return get_track_class_name(track)
 
     def _get_confidence(self, track) -> float:
         current_detection = getattr(track, "current_detection", None)
@@ -461,6 +499,13 @@ class WrongWayDetector:
         active_track_ids = set()
 
         for track in active_tracks:
+            
+            class_name = get_track_class_name(track)
+
+            if not is_vehicle_track_for_wrong_way(track):
+                print(f"[WRONG_WAY SKIP TRACK] class={class_name} track_id={getattr(track, 'track_id', 'unknown')}")
+                continue
+            
             track_id = self._get_track_id(track)
             if track_id < 0:
                 continue

@@ -24,6 +24,15 @@ import logging
 from datetime import datetime
 from typing import Dict, List
 
+from class_config import (
+    is_vehicle_class,
+    is_person_class,
+    is_wrong_way_vehicle_class,
+    is_collision_vehicle_class,
+    COLLISION_VEHICLE_CLASSES,
+    WRONG_WAY_VEHICLE_CLASSES,
+)
+
 try:
     from trackguard_dcbot_bridge import report_collision_event
     DCBOT_BRIDGE_AVAILABLE = True
@@ -375,7 +384,7 @@ def visualize_detections(frame: np.ndarray, behaviour_results: Dict,
                 if behaviour_type == 'collision':
                     class_primary = det.get('class_primary', 'unknown')
                     class_secondary = det.get('class_secondary', 'unknown')
-                    if class_primary == 'car' and class_secondary == 'car':
+                    if class_primary in COLLISION_VEHICLE_CLASSES and class_secondary in COLLISION_VEHICLE_CLASSES:
                         detections_to_show.append(det)
                 
                 # Fallen: only show if track is 'motorcycle'
@@ -387,9 +396,17 @@ def visualize_detections(frame: np.ndarray, behaviour_results: Dict,
                 # Other behaviours: show all
                 else:
                     detections_to_show.append(det)
+    
     elif detector_type in behaviour_results:
         detections_to_show = behaviour_results[detector_type]
-    
+
+        if detector_type == "wrong_way":
+            detections_to_show = [
+                det for det in detections_to_show
+                if is_vehicle_for_wrong_way(det)
+            ]
+        
+
     # ============================================
     # Draw proximity warnings (objek mendekat, belum collision)
     # ============================================
@@ -977,6 +994,22 @@ def visualize_detections(frame: np.ndarray, behaviour_results: Dict,
     return vis_frame
 
 
+def get_det_class_name(det: dict) -> str:
+    return str(
+        det.get("class_primary")
+        or det.get("class_name")
+        or det.get("class")
+        or det.get("label")
+        or det.get("raw_event", {}).get("class_primary")
+        or det.get("raw_event", {}).get("class_name")
+        or "unknown"
+    ).lower()
+
+
+def is_vehicle_for_wrong_way(det: dict) -> bool:
+    class_name = get_det_class_name(det)
+    return is_wrong_way_vehicle_class(class_name)
+
 # Global state untuk track detections dengan timestamp (real-time PC)
 # Format: {'fallen': [(frame_id, datetime_obj, track_id), ...], 'collision': [(frame_id, datetime_obj, track_id_1, track_id_2), ...], 'proximity': [(frame_id, datetime_obj, track_id_1, track_id_2), ...]}
 detection_history = {
@@ -1132,8 +1165,8 @@ def draw_alert_banner(frame: np.ndarray, behaviour_results: Dict,
                 if detector_type == 'all':
                     class_primary = det.get('class_primary', 'unknown')
                     class_secondary = det.get('class_secondary', 'unknown')
-                    if class_primary != 'car' or class_secondary != 'car':
-                        continue  # Skip non-car collisions in 'all' mode
+                    if class_primary not in COLLISION_VEHICLE_CLASSES or class_secondary not in COLLISION_VEHICLE_CLASSES:
+                        continue
                 
                 collision_detections.append(det)
         
@@ -1170,6 +1203,8 @@ def draw_alert_banner(frame: np.ndarray, behaviour_results: Dict,
         raw_wrong_way = behaviour_results.get('wrong_way', [])
         for det in raw_wrong_way:
             if det.get('behaviour_type', 'unknown') == 'wrong_way':
+                if not is_vehicle_for_wrong_way(det):
+                    continue
                 wrong_way_detections.append(det)
 
         if len(wrong_way_detections) > 0:
@@ -2316,17 +2351,33 @@ def main():
     console_handler.setFormatter(logging.Formatter('%(message)s'))
     root_logger.addHandler(console_handler)
     
-    # Validate video file
-    if not os.path.exists(args.video):
-        print(f"❌ Error: Video file not found: {args.video}")
-        sys.exit(1)
-    
-    print("=" * 60)
-    print("LTE-TrackGuard - Physics-Based Traffic Behaviour Detection")
-    print("=" * 60)
-    print(f"📹 Input Video: {args.video}")
-    print(f"📝 Logging to: {log_file}")
-    
+    # Validate video source
+    video_src = args.video
+
+    is_stream = (
+        video_src.startswith("rtsp://")
+        or video_src.startswith("http://")
+        or video_src.startswith("https://")
+    )
+
+    if not is_stream:
+        if video_src.startswith("file://"):
+            video_src = video_src.replace("file://", "")
+
+        if not os.path.exists(video_src):
+            print(f"❌ Error: Video file not found: {video_src}")
+            sys.exit(1)
+
+        args.video = video_src
+    else:
+        print(f"📡 Stream source detected, skip os.path.exists check: {video_src}")
+        
+        print("=" * 60)
+        print("LTE-TrackGuard - Physics-Based Traffic Behaviour Detection")
+        print("=" * 60)
+        print(f"📹 Input Video: {args.video}")
+        print(f"📝 Logging to: {log_file}")
+        
     # Configure physics settings
     configure_physics_settings(args)
     
@@ -2518,8 +2569,15 @@ def main():
                         
                             # Send wrong-way event to DCBOT bridge
                             if det_type == 'wrong_way' and det.get('behaviour_type') == 'wrong_way':
+                                if not is_vehicle_for_wrong_way(det):
+                                    print(
+                                        f"[WRONG_WAY SKIP] non-vehicle class={get_det_class_name(det)} "
+                                        f"track_id={det.get('track_id', -1)}"
+                                    )
+                                    continue
+
                                 track_id = det.get('track_id', -1)
-                                wrong_key = (track_id, frame_id // 30)  # 約每 1 秒最多一次，假設 30fps
+                                wrong_key = (track_id, frame_id // 30)
 
                                 if wrong_key not in reported_wrong_way:
                                     if DCBOT_BRIDGE_AVAILABLE:
