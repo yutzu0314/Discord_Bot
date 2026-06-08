@@ -620,21 +620,52 @@ class Notify(Cog_Extension):
         async def on_event(event: dict):
             image_path = event.get("image_path")
             annotated_image_path = event.get("annotated_image_path")
+            debug_text = event.get("discord_debug_text")
 
-            behaviour_type = event.get("behaviour_type") or event.get("event") or trackguard_detect_type
+            behaviour_type = (
+                event.get("behaviour_type")
+                or event.get("event")
+                or event.get("raw_event", {}).get("behaviour_type")
+                or "trackguard_event"
+            )
 
-            if behaviour_type == "wrong_way":
-                class_names = [
-                    f"{event.get('class_primary', event.get('class_name', 'unknown'))} wrong_way"
-                ]
-            elif behaviour_type == "collision":
-                class_names = [
-                    f"{event.get('class_primary', 'unknown')} vs {event.get('class_secondary', 'unknown')}"
-                ]
+            if behaviour_type == "collision":
+                class_primary = event.get("class_primary", "unknown")
+                class_secondary = event.get("class_secondary", "unknown")
+                class_names = [f"{class_primary} vs {class_secondary}"]
+
+            elif behaviour_type == "wrong_way":
+                class_name = (
+                    event.get("class_primary")
+                    or event.get("class_name")
+                    or event.get("raw_event", {}).get("class_name")
+                    or "vehicle"
+                )
+                track_id = event.get("track_id", "unknown")
+                angle_diff = event.get("angle_diff_deg", None)
+
+                if angle_diff is not None:
+                    class_names = [f"wrong_way | {class_name} | track={track_id} | angle_diff={float(angle_diff):.1f}"]
+                else:
+                    class_names = [f"wrong_way | {class_name} | track={track_id}"]
+
+            elif behaviour_type in ("motorcycle_fallen", "fallen"):
+                class_name = (
+                    event.get("class_primary")
+                    or event.get("class_name")
+                    or event.get("raw_event", {}).get("class_name")
+                    or "motorcycle"
+                )
+                track_id = event.get("track_id", "unknown")
+                confidence = event.get("confidence", None)
+
+                if confidence is not None:
+                    class_names = [f"motorcycle_fallen | {class_name} | track={track_id} | conf={float(confidence):.2f}"]
+                else:
+                    class_names = [f"motorcycle_fallen | {class_name} | track={track_id}"]
+
             else:
-                class_names = [
-                    f"{event.get('class_primary', event.get('class_name', 'unknown'))} {behaviour_type}"
-                ]
+                class_names = [str(behaviour_type)]
 
             if image_path and os.path.exists(image_path):
                 await send_fn(image_path, class_names, annotated_image_path)
@@ -643,9 +674,12 @@ class Notify(Cog_Extension):
             else:
                 print("[TRACKGUARD] 事件收到，但找不到可傳送的圖片")
 
+            if debug_text:
+                await report_channel.send(debug_text)
+
             if view.get_stop_state():
                 return
-
+            
         try:
             print(f"[DEBUG] TrackGuard video_path={video_path}")
             print(f"[DEBUG] TrackGuard detect_type={trackguard_detect_type}")

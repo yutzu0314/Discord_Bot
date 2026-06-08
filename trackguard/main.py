@@ -197,6 +197,24 @@ def configure_physics_settings(args):
     else:
         print("📊 Standard Mode (No Physics)")
 
+def save_dcbot_event_snapshot(frame, event_type: str, frame_id: int, track_id=None) -> str:
+    """
+    Save current TrackGuard frame for DCBot event image.
+    Works for both local video and RTSP streams.
+    """
+    snapshot_dir = "/home/inf431/Discord_Bot/trackguard_snapshots"
+    os.makedirs(snapshot_dir, exist_ok=True)
+
+    safe_event_type = str(event_type or "event").replace("/", "_")
+    safe_track_id = str(track_id if track_id is not None else "unknown")
+
+    filename = f"{safe_event_type}_f{frame_id}_t{safe_track_id}_{int(time.time() * 1000)}.jpg"
+    out_path = os.path.join(snapshot_dir, filename)
+
+    ok = cv2.imwrite(out_path, frame)
+    print(f"[DCBOT SNAPSHOT] imwrite={ok} path={out_path}")
+
+    return out_path if ok else ""
 
 def draw_dashed_rectangle(img, pt1: tuple, pt2: tuple, color: tuple, thickness: int = 1, dash_length: int = 10):
     """
@@ -393,6 +411,10 @@ def visualize_detections(frame: np.ndarray, behaviour_results: Dict,
                     # FallenDetector already filters for motorcycle, so we can trust it
                     detections_to_show.append(det)
                 
+                elif behaviour_type == "wrong_way":
+                    if is_vehicle_for_wrong_way(det):
+                        detections_to_show.append(det)
+
                 # Other behaviours: show all
                 else:
                     detections_to_show.append(det)
@@ -1612,8 +1634,11 @@ def draw_detection_summary(frame: np.ndarray, behaviour_results: Dict,
                 if behaviour_type == 'collision':
                     class_primary = det.get('class_primary', 'unknown')
                     class_secondary = det.get('class_secondary', 'unknown')
-                    if class_primary != 'car' or class_secondary != 'car':
-                        continue  # Skip non-car collisions
+                    if (
+                        class_primary not in COLLISION_VEHICLE_CLASSES
+                        or class_secondary not in COLLISION_VEHICLE_CLASSES
+                    ):
+                        continue
                 
                 # Fallen: only 'motorcycle' (FallenDetector already filters, but double-check)
                 # We trust FallenDetector filtering, so no additional check needed
@@ -2420,6 +2445,7 @@ def main():
     # Track reported collisions untuk avoid duplicate reports
     reported_collisions = set()  # Set of (track_id_1, track_id_2) pairs
     reported_wrong_way = set()
+    reported_fallen = set()
     
     print(f"📝 Forensic logs will be saved to: {forensic_log_file}")
     
@@ -2555,6 +2581,47 @@ def main():
             # Get behaviour results
             behaviour_results = track_manager.behaviour_results if args.physics else {}
             
+            # Prepare visualization frame early for DCBot snapshots
+            snapshot_frame = track_manager.visualize_tracks(
+                frame,
+                show_trajectories=args.show_trajectories
+            )
+
+            if args.physics and behaviour_results:
+                proximity_warning_pairs_for_snapshot = {}
+
+                if (
+                    hasattr(track_manager, 'behaviour_detectors')
+                    and 'collision' in track_manager.behaviour_detectors
+                ):
+                    collision_detector = track_manager.behaviour_detectors['collision']
+                    if hasattr(collision_detector, 'proximity_warnings'):
+                        proximity_warning_pairs_for_snapshot = collision_detector.proximity_warnings
+
+                current_track_bboxes_for_snapshot = {
+                    t.track_id: t.current_detection['bbox']
+                    for t in track_manager.get_current_tracks()
+                    if 'bbox' in t.current_detection
+                }
+
+                snapshot_frame = visualize_detections(
+                    snapshot_frame,
+                    behaviour_results,
+                    args.detect,
+                    frame_id,
+                    proximity_warning_pairs_for_snapshot,
+                    current_track_bboxes_for_snapshot
+                )
+
+                snapshot_frame = draw_alert_banner(
+                    snapshot_frame,
+                    behaviour_results,
+                    frame_id,
+                    fps,
+                    args.detect,
+                    proximity_warning_pairs_for_snapshot
+                )
+            
             # Count detections
             for det_type, dets in behaviour_results.items():
                 if len(dets) > 0:
@@ -2582,13 +2649,70 @@ def main():
                                 if wrong_key not in reported_wrong_way:
                                     if DCBOT_BRIDGE_AVAILABLE:
                                         try:
+                                            
+                                            snapshot_path = save_dcbot_event_snapshot(
+                                                snapshot_frame,
+                                                "wrong_way",
+                                                frame_id,
+                                                track_id
+                                            )
+
+                                            det["frame_id"] = frame_id
+                                            det["source_video"] = args.video
+                                            det["source_video_abs"] = (
+                                                os.path.abspath(args.video)
+                                                if not args.video.startswith(("rtsp://", "http://", "https://"))
+                                                else args.video
+                                            )
+
+                                            if snapshot_path:
+                                                det["image_path"] = snapshot_path
+                                                det["annotated_image_path"] = snapshot_path
+
                                             event_path = report_collision_event(det, source_video=args.video)
+                                            
                                             print(f"[DCBOT BRIDGE] wrong_way event written: {event_path}")
                                             reported_wrong_way.add(wrong_key)
                                         except Exception as e:
                                             print(f"[DCBOT BRIDGE] failed to write wrong_way event: {e}")
                                     else:
                                         print("[DCBOT BRIDGE] skipped wrong_way: bridge unavailable")
+                        
+                        # Send fallen motorcycle event to DCBOT bridge
+                        if det_type == 'fallen' and det.get('behaviour_type') == 'motorcycle_fallen':
+                            track_id = det.get('track_id', -1)
+                            fallen_key = (track_id, frame_id // 30)
+
+                            if fallen_key not in reported_fallen:
+                                if DCBOT_BRIDGE_AVAILABLE:
+                                    try:
+                                        snapshot_path = save_dcbot_event_snapshot(
+                                            snapshot_frame,
+                                            "motorcycle_fallen",
+                                            frame_id,
+                                            track_id
+                                        )
+
+                                        det["frame_id"] = frame_id
+                                        det["source_video"] = args.video
+                                        det["source_video_abs"] = (
+                                            os.path.abspath(args.video)
+                                            if not args.video.startswith(("rtsp://", "http://", "https://"))
+                                            else args.video
+                                        )
+
+                                        if snapshot_path:
+                                            det["image_path"] = snapshot_path
+                                            det["annotated_image_path"] = snapshot_path
+
+                                        event_path = report_collision_event(det, source_video=args.video)
+                                        print(f"[DCBOT BRIDGE] motorcycle_fallen event written: {event_path}")
+                                        reported_fallen.add(fallen_key)
+
+                                    except Exception as e:
+                                        print(f"[DCBOT BRIDGE] failed to write motorcycle_fallen event: {e}")
+                                else:
+                                    print("[DCBOT BRIDGE] skipped motorcycle_fallen: bridge unavailable")
                         
                         # Handle collision detections: forensic logs + Telegram
                         if det_type == 'collision':
@@ -2617,6 +2741,25 @@ def main():
                                     # 0. Send collision event to DCBOT bridge
                                     if DCBOT_BRIDGE_AVAILABLE:
                                         try:
+                                            snapshot_path = save_dcbot_event_snapshot(
+                                                snapshot_frame,
+                                                "collision",
+                                                frame_id,
+                                                f"{track_id_1}_{track_id_2}"
+                                            )
+
+                                            det["frame_id"] = frame_id
+                                            det["source_video"] = args.video
+                                            det["source_video_abs"] = (
+                                                os.path.abspath(args.video)
+                                                if not args.video.startswith(("rtsp://", "http://", "https://"))
+                                                else args.video
+                                            )
+
+                                            if snapshot_path:
+                                                det["image_path"] = snapshot_path
+                                                det["annotated_image_path"] = snapshot_path
+
                                             event_path = report_collision_event(det, source_video=args.video)
                                             print(f"[DCBOT BRIDGE] collision event written: {event_path}")
                                         except Exception as e:

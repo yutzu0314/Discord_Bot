@@ -170,22 +170,22 @@ class Settings:
             'angle_bins': 16,
 
             # Learning / judgement
-            'learn_seconds': 20,
+            'learn_seconds': 35,
             'move_threshold': 18.0,
-            'min_field_samples': 14,
-            'wrong_way_angle': 80.0,
-            'wrong_way_frames': 8,
+            'min_field_samples': 20,
+            'wrong_way_angle': 85.0,
+            'wrong_way_frames': 10,
             'trail_len': 20,
 
             # Freeze stable direction cells
-            'min_samples_to_freeze': 80,
-            'freeze_ratio': 0.88,
-            'max_dominant_switches_for_freeze': 4,
+            'min_samples_to_freeze': 120,
+            'freeze_ratio': 0.9,
+            'max_dominant_switches_for_freeze': 3,
 
             # Ignore unstable / ambiguous cells
-            'min_samples_to_ignore': 140,
-            'ignore_ratio': 0.72,
-            'dominant_switch_threshold': 10,
+            'min_samples_to_ignore': 200,
+            'ignore_ratio': 0.70,
+            'dominant_switch_threshold': 12,
 
             # Debug overlay
             'show_direction_field': False

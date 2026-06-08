@@ -15,6 +15,19 @@ EVENT_INDEX_FILE = os.path.join(EVENT_DIR, "events.jsonl")
 os.makedirs(EVENT_DIR, exist_ok=True)
 
 
+def is_stream_source(path: str) -> bool:
+    return str(path).startswith(("rtsp://", "http://", "https://"))
+
+
+def normalize_source_video_abs(source_video: str) -> str:
+    if not source_video:
+        return ""
+
+    if is_stream_source(source_video):
+        return source_video
+
+    return os.path.abspath(source_video)
+
 def _safe_int(value, default=0):
     try:
         return int(value)
@@ -63,6 +76,11 @@ def _build_payload(event: Dict[str, Any], source_video: Optional[str] = None) ->
         event_name = "collision"
         title = "車禍偵測"
         note_prefix = "TrackGuard collision"
+    elif behaviour_type in ("motorcycle_fallen", "fallen"):
+        category = "accident"
+        event_name = "motorcycle_fallen"
+        title = "機車倒地偵測"
+        note_prefix = "TrackGuard motorcycle_fallen"
     else:
         category = "traffic_event"
         event_name = behaviour_type
@@ -74,8 +92,12 @@ def _build_payload(event: Dict[str, Any], source_video: Optional[str] = None) ->
     frame_id = _safe_int(event.get("frame_id", 0))
     confidence = _safe_float(event.get("confidence", 0.0))
 
-    source_video_rel = source_video or ""
-    source_video_abs = os.path.abspath(source_video_rel) if source_video_rel else ""
+    source_video_rel = source_video or event.get("source_video") or ""
+    source_video_abs = (
+        normalize_source_video_abs(source_video_rel)
+        if source_video_rel
+        else event.get("source_video_abs", "")
+    )
 
     payload = {
         "event_id": _build_event_id(event),
@@ -92,11 +114,20 @@ def _build_payload(event: Dict[str, Any], source_video: Optional[str] = None) ->
         "source_video": source_video_rel,
         "source_video_abs": source_video_abs,
 
+        # RTSP / stream 事件當下截圖，由 main.py 存好後傳進來
+        "image_path": event.get("image_path"),
+        "annotated_image_path": event.get("annotated_image_path"),
+
         "frame_id": frame_id,
         "track_id": track_id,
         "track_id_secondary": track_id_secondary,
 
-        "class_primary": event.get("class_primary", event.get("class_name", "unknown")),
+        "class_primary": (
+            event.get("class_primary")
+            or event.get("class_name")
+            or ("motorcycle" if behaviour_type in ("motorcycle_fallen", "fallen") else "unknown")
+        ),
+        
         "class_secondary": event.get("class_secondary", "unknown"),
 
         "confidence": confidence,

@@ -29,28 +29,30 @@ def print_trackguard_debug():
     print(f"TrackGuard events dir exists: {os.path.exists(EVENT_DIR)}")
 
     try:
-        import sys
         if TRACKGUARD_ROOT not in sys.path:
             sys.path.insert(0, TRACKGUARD_ROOT)
 
         from trackguard.class_config import (
-            VEHICLE_CLASSES,
-            PERSON_CLASSES,
-            WRONG_WAY_VEHICLE_CLASSES,
-            COLLISION_VEHICLE_CLASSES,
+            TRACKGUARD_MODEL_PROFILE,
+            TARGET_CLASSES,
+            CLASS_IDS,
+            get_person_classes,
+            get_wrong_way_vehicle_classes,
+            get_collision_participant_classes,
         )
 
         print("TrackGuard class_config: OK")
-        print(f"▶ Vehicle classes: {sorted(VEHICLE_CLASSES)}")
-        print(f"▶ Person classes excluded: {sorted(PERSON_CLASSES)}")
-        print(f"▶ Wrong-way vehicle classes: {sorted(WRONG_WAY_VEHICLE_CLASSES)}")
-        print(f"▶ Collision vehicle classes: {sorted(COLLISION_VEHICLE_CLASSES)}")
+        print(f"▶ Model profile: {TRACKGUARD_MODEL_PROFILE}")
+        print(f"▶ Target classes: {TARGET_CLASSES}")
+        print(f"▶ Class IDs: {CLASS_IDS}")
+        print(f"▶ Person classes excluded from wrong_way: {sorted(get_person_classes())}")
+        print(f"▶ Wrong-way vehicle classes: {sorted(get_wrong_way_vehicle_classes())}")
+        print(f"▶ Collision participant classes: {sorted(get_collision_participant_classes())}")
 
     except Exception as e:
         print(f"TrackGuard class_config: ERROR {repr(e)}")
 
     print("========================")
-
 
 def cleanup_old_events_for_video(event_dir: str, video_path: str):
     if not os.path.exists(event_dir):
@@ -127,6 +129,11 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
 
         source_video = event.get("source_video_abs") or event.get("source_video")
         frame_id = int(event.get("frame_id", 0))
+        
+        print(
+            f"[SNAPSHOT DEBUG] behaviour={event.get('behaviour_type') or event.get('event')} "
+            f"frame_id={frame_id} source={source_video}"
+        )
 
         if not source_video or not os.path.exists(source_video):
             print(f"[SNAPSHOT] source video not found: {source_video}")
@@ -206,6 +213,69 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
 
         return behaviour_type == detect_type
 
+    def format_collision_debug(event: dict) -> str:
+        raw = event.get("raw_event", {}) or {}
+
+        def get_value(key, default="N/A"):
+            return event.get(key, raw.get(key, default))
+
+        behaviour_type = get_value("behaviour_type")
+        confidence = get_value("confidence", 0)
+        confidence_label = get_value("confidence_label")
+        alert_level = get_value("alert_level")
+        detection_mode = get_value("detection_mode")
+        state = get_value("state")
+        tier = get_value("tier")
+        persist_count = get_value("persist_count")
+
+        track_id = get_value("track_id")
+        track_id_secondary = get_value("track_id_secondary")
+
+        class_primary = get_value("class_primary")
+        class_secondary = get_value("class_secondary")
+
+        iou = get_value("iou_overlap")
+        energy_i = get_value("energy_loss_primary")
+        energy_j = get_value("energy_loss_secondary")
+        ar_i = get_value("ar_change_i")
+        ar_j = get_value("ar_change_j")
+        area_i = get_value("area_change_i")
+        area_j = get_value("area_change_j")
+        ars_i = get_value("ars_zscore_i")
+        ars_j = get_value("ars_zscore_j")
+
+        frame_id = get_value("frame_id")
+        event_id = get_value("event_id")
+
+        return (
+            "```text\n"
+            "[TrackGuard Collision Debug]\n"
+            f"event_id: {event_id}\n"
+            f"frame_id: {frame_id}\n"
+            f"behaviour: {behaviour_type}\n"
+            f"tracks: {track_id} <-> {track_id_secondary}\n"
+            f"classes: {class_primary} <-> {class_secondary}\n"
+            f"confidence: {confidence}\n"
+            f"confidence_label: {confidence_label}\n"
+            f"alert_level: {alert_level}\n"
+            f"state: {state}\n"
+            f"persist_count: {persist_count}\n"
+            f"tier: {tier}\n"
+            f"detection_mode: {detection_mode}\n"
+            "\n"
+            "[Evidence]\n"
+            f"iou_overlap: {iou}\n"
+            f"energy_loss_primary: {energy_i}\n"
+            f"energy_loss_secondary: {energy_j}\n"
+            f"ar_change_i: {ar_i}\n"
+            f"ar_change_j: {ar_j}\n"
+            f"area_change_i: {area_i}\n"
+            f"area_change_j: {area_j}\n"
+            f"ars_zscore_i: {ars_i}\n"
+            f"ars_zscore_j: {ars_j}\n"
+            "```"
+        )
+
     async def read_event_files():
         print(f"[EVENT WATCHER] started, dir={EVENT_DIR}")
 
@@ -270,8 +340,31 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
                         print(f"[PARSED EVENT FILE] {filename}")
                         print(event)
 
-                        event = make_event_snapshot(event)
 
+                        print(
+                            f"[EVENT IMAGE DEBUG BEFORE SNAPSHOT] "
+                            f"behaviour={event.get('behaviour_type') or event.get('event')} "
+                            f"image_path={event.get('image_path')} "
+                            f"annotated_image_path={event.get('annotated_image_path')} "
+                            f"source={event.get('source_video_abs') or event.get('source_video')}"
+                        )
+                        
+                        event = make_event_snapshot(event)
+                        
+                        print(
+                            f"[EVENT IMAGE DEBUG AFTER SNAPSHOT] "
+                            f"image_path={event.get('image_path')} "
+                            f"annotated_image_path={event.get('annotated_image_path')}"
+                        )
+
+                        if (
+                            event.get("behaviour_type") == "collision"
+                            or event.get("event") == "collision"
+                            or event.get("raw_event", {}).get("behaviour_type") == "collision"
+                        ):
+                            event["discord_debug_text"] = format_collision_debug(event)
+
+                        print("[PARSED EVENT]", event)
                         if on_event is not None:
                             await on_event(event)
 

@@ -455,6 +455,44 @@ class WrongWayDetector:
 
         return float(getattr(track, "confidence", 1.0))
 
+    def _get_road_anchor_point(self, bbox: List[float]) -> Tuple[float, float]:
+        """
+        用車框底部附近作為 wrong_way 方向場學習點。
+        避免 bus/truck 車框太大時污染隔壁車道。
+        """
+        x1, y1, x2, y2 = bbox
+        w = max(1.0, x2 - x1)
+        h = max(1.0, y2 - y1)
+
+        anchor_x = (x1 + x2) / 2.0
+
+        # 底部 1/3 區域的中心，大約是 y1 + 5/6 h
+        anchor_y = y1 + h * 0.83
+
+        return anchor_x, anchor_y
+
+    def _estimate_anchor_radius_cells(self, bbox: List[float]) -> int:
+        """
+        wrong_way 方向場只讓車底附近影響少數格子。
+        大車不應該因為 bbox 很大就污染旁邊車道。
+        """
+        x1, y1, x2, y2 = bbox
+        bw = max(1.0, x2 - x1)
+        bh = max(1.0, y2 - y1)
+
+        # 只拿底部 1/3 的高度估算，不拿整台車高度
+        effective_h = bh / 3.0
+
+        radius = round(
+            max(
+                bw / max(1, self.direction_field.cell_w),
+                effective_h / max(1, self.direction_field.cell_h),
+            ) / 2
+        ) - 1
+
+        # 強制最多只擴散 1 格，避免 bus/truck 影響隔壁車道
+        return max(0, min(1, int(radius)))
+
     def _estimate_radius_cells(self, bbox: List[float]) -> int:
         x1, y1, x2, y2 = bbox
         bw = max(1.0, x2 - x1)
@@ -520,6 +558,8 @@ class WrongWayDetector:
 
             cx, cy = center
             x1, y1, x2, y2 = bbox
+            
+            anchor_x, anchor_y = self._get_road_anchor_point(bbox)
 
             state = self.track_states[track_id]
             state.points.append((cx, cy))
@@ -543,20 +583,20 @@ class WrongWayDetector:
             move_angle_deg = compute_angle_deg(dx, dy)
             state.last_angle_deg = move_angle_deg
 
-            radius_cells = self._estimate_radius_cells(bbox)
+            radius_cells = self._estimate_anchor_radius_cells(bbox)
 
             self.direction_field.update(
-                cx,
-                cy,
+                anchor_x,
+                anchor_y,
                 move_angle_deg,
                 weight=1.0,
                 radius_cells=radius_cells,
             )
 
-            cell_state = self.direction_field.get_cell_state(cx, cy)
+            cell_state = self.direction_field.get_cell_state(anchor_x, anchor_y)
             dominant_direction = self.direction_field.dominant_angle(
-                cx,
-                cy,
+                anchor_x,
+                anchor_y,
                 min_samples=self.min_field_samples,
             )
 
@@ -603,6 +643,8 @@ class WrongWayDetector:
                     "track_id": track_id,
                     "bbox": [int(x1), int(y1), int(x2), int(y2)],
                     "center": [float(cx), float(cy)],
+                    "anchor_point": [float(anchor_x), float(anchor_y)],
+                    "anchor_radius_cells": int(radius_cells),
                     "class_name": self._get_class_name(track),
                     "confidence": float(confidence),
 
