@@ -54,6 +54,44 @@ intents.message_content = True
 bot = commands.Bot(command_prefix='[', intents=intents)
 WEEKLY_REPORT_CHANNEL_ID = 1419250669272961041  # ←改成「每周報表」頻道 ID
 
+async def capture_grafana_dashboard(output_path="grafana_weekly.png"):
+    grafana_url = os.getenv("GRAFANA_URL")
+    grafana_user = os.getenv("GRAFANA_USER")
+    grafana_password = os.getenv("GRAFANA_PASSWORD")
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        
+        page = await browser.new_page(
+            viewport={"width": 1920, "height": 1080}
+        )
+
+        # 先進登入頁
+        await page.goto("http://localhost:3000/login")
+
+        await page.fill('input[name="user"]', grafana_user)
+        await page.fill('input[name="password"]', grafana_password)
+
+        await page.click('button[type="submit"]')
+
+        # 等登入完成
+        await page.wait_for_timeout(3000)
+
+        # 開 Dashboard
+        await page.goto(grafana_url)
+
+        # 等圖表畫出來
+        await page.wait_for_timeout(8000)
+
+        await page.screenshot(
+            path=output_path,
+            full_page=True
+        )
+
+        await browser.close()
+
+    return output_path
+
 @tasks.loop(hours=168)  # 24*7，每 7 天執行一次
 async def weekly_report_task():
     await bot.wait_until_ready()
@@ -91,74 +129,16 @@ async def weekly_report_task():
         color=0x3498db,
     )
 
-    # 各路口違規數（文字版，用中文）
-    if by_camera:
-        lines = [f"• {row['camera_name']}: **{row['total']}** 件" for row in by_camera]
-        embed.add_field(
-            name="各路口違規數",
-            value="\n".join(lines),
-            inline=False,
-        )
-
-    # 各類型違規數
-    if by_category:
-        lines_cat = [f"• {row['category']}: **{row['total']}** 件" for row in by_category]
-        embed.add_field(
-            name="違規類型分布",
-            value="\n".join(lines_cat),
-            inline=False,
-        )
-
     embed.set_footer(text="自動產生｜資料來源：reports / cameras")
+    
+        # === Grafana Dashboard 截圖 ===
+    screenshot_path = await capture_grafana_dashboard()
 
-    # === 畫長條圖（圖上用英文名稱） ===
-    rows = await get_weekly_camera_category_counts(days=7)
-
-    if rows:
-        categories = ["oloo", "bike"]
-
-        # 圖上用英文名稱（camera_name_en），沒有的話在 SQL 那邊會 fallback
-        camera_labels = sorted({row["camera_name_en"] for row in rows})
-        counts = {label: {cat: 0 for cat in categories} for label in camera_labels}
-
-        for row in rows:
-            label = row["camera_name_en"]
-            cat = row["category"]
-            if cat in categories:
-                counts[label][cat] = row["total"]
-
-        x = list(range(len(camera_labels)))
-        oloo_values = [counts[label]["oloo"] for label in camera_labels]
-        bike_values = [counts[label]["bike"] for label in camera_labels]
-
-        fig, ax = plt.subplots(figsize=(8, 4))
-
-        width = 0.35
-        x_oloo = [i - width / 2 for i in x]
-        x_bike = [i + width / 2 for i in x]
-
-        ax.bar(x_oloo, oloo_values, width, label="oloo")
-        ax.bar(x_bike, bike_values, width, label="bike")
-
-        ax.set_xticks(x)
-        ax.set_xticklabels(camera_labels, rotation=30, ha="right")
-        ax.set_ylabel("Violations")
-        ax.set_title("Violations per Camera (Last 7 Days)")
-        ax.legend()
-
-        plt.tight_layout()
-
-        buf = BytesIO()
-        fig.savefig(buf, format="png")
-        buf.seek(0)
-        plt.close(fig)
-
-        file = discord.File(buf, filename="weekly_bar.png")
-        embed.set_image(url="attachment://weekly_bar.png")
-
+    if screenshot_path:
+        file = discord.File(screenshot_path, filename="grafana_weekly.png")
+        embed.set_image(url="attachment://grafana_weekly.png")
         await channel.send(embed=embed, file=file)
     else:
-        # 沒有資料就只送文字版
         await channel.send(embed=embed)
 
 
@@ -244,69 +224,14 @@ async def weekly_report_cmd(ctx: commands.Context):
         color=0x3498db,
     )
 
-    # 中文文字統計
-    if by_camera:
-        lines = [f"• {row['camera_name']}: **{row['total']}** 件" for row in by_camera]
-        embed.add_field(
-            name="各路口違規數",
-            value="\n".join(lines),
-            inline=False,
-        )
-
-    if by_category:
-        lines_cat = [f"• {row['category']}: **{row['total']}** 件" for row in by_category]
-        embed.add_field(
-            name="違規類型分布",
-            value="\n".join(lines_cat),
-            inline=False,
-        )
-
     embed.set_footer(text="自動產生｜資料來源：reports / cameras")
 
-    # 圖表（英文名稱）
-    rows = await get_weekly_camera_category_counts(days=7)
+    # === Grafana Dashboard 截圖 ===
+    screenshot_path = await capture_grafana_dashboard()
 
-    if rows:
-        categories = ["oloo", "bike"]
-
-        camera_labels = sorted({row["camera_name_en"] for row in rows})
-        counts = {label: {cat: 0 for cat in categories} for label in camera_labels}
-
-        for row in rows:
-            label = row["camera_name_en"]
-            cat = row["category"]
-            if cat in categories:
-                counts[label][cat] = row["total"]
-
-        x = list(range(len(camera_labels)))
-        oloo_values = [counts[label]["oloo"] for label in camera_labels]
-        bike_values = [counts[label]["bike"] for label in camera_labels]
-
-        fig, ax = plt.subplots(figsize=(8, 4))
-
-        width = 0.35
-        x_oloo = [i - width / 2 for i in x]
-        x_bike = [i + width / 2 for i in x]
-
-        ax.bar(x_oloo, oloo_values, width, label="oloo")
-        ax.bar(x_bike, bike_values, width, label="bike")
-
-        ax.set_xticks(x)
-        ax.set_xticklabels(camera_labels, rotation=30, ha="right")
-        ax.set_ylabel("Violations")
-        ax.set_title("Violations per Camera (Last 7 Days)")
-        ax.legend()
-
-        plt.tight_layout()
-
-        buf = BytesIO()
-        fig.savefig(buf, format="png")
-        buf.seek(0)
-        plt.close(fig)
-
-        file = discord.File(buf, filename="weekly_bar.png")
-        embed.set_image(url="attachment://weekly_bar.png")
-
+    if screenshot_path:
+        file = discord.File(screenshot_path, filename="grafana_weekly.png")
+        embed.set_image(url="attachment://grafana_weekly.png")
         await channel.send(embed=embed, file=file)
     else:
         await channel.send(embed=embed)
