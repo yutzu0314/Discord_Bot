@@ -1,105 +1,171 @@
 # =========================
+
 # Local config / secrets
+
 # =========================
+
 setting.json
 settings.json
 .env
+.env.*
 *.env
 
 # =========================
+
 # Editor / OS
+
 # =========================
+
 .vscode/
+.idea/
 .DS_Store
 Thumbs.db
 
 # =========================
+
 # Python cache
+
 # =========================
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+
+**pycache**/
+*.py[cod]
 .pytest_cache/
+.mypy_cache/
 .ipynb_checkpoints/
 
 # =========================
-# Python virtual env
+
+# Python virtual environments
+
 # =========================
+
 venv/
 .venv/
 env/
 
 # =========================
-# ByteTrack / YOLO datasets
-# =========================
-bytetrack/datasets/
-bytetrack/Smart_Hungarian_iou_state_based/MOT17/
-bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/MOT17/
+
+# Logs
 
 # =========================
-# Model weights / large model files
-# =========================
-bytetrack/pretrained/
-bytetrack/weights/
-bytetrack/models/*.pth
-bytetrack/models/*.pt
-bytetrack/models/*.onnx
-bytetrack/models/*.engine
-bytetrack/models/*.trt
-bytetrack/Model/
-bytetrack/Smart_Hungarian_iou_state_based/models/
-bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/Model/
+
+log.txt
+*.log
+log_terminal/
+forensic_logs/
 
 # =========================
-# Videos / media inputs
-# =========================
-bytetrack/videos/
-*.mp4
-*.avi
-*.mov
-*.mkv
 
-# 如果你有測試影片資料夾
-test_videos/
-
+# Runtime event / snapshot outputs
 
 # =========================
-# Runtime outputs / prediction results
+
+trackguard_events/
+trackguard_snapshots/
+
 # =========================
+
+# Detection / training outputs
+
+# =========================
+
 runs/
+results/
+trackguard/results/
+
 bytetrack/runs/
 bytetrack/results/
 bytetrack/results_iou_smart_hungarian/
 bytetrack/results_pure_smart_hungarian/
+
 bytetrack/Smart_Hungarian_iou_state_based/results/
 bytetrack/Smart_Hungarian_iou_state_based/results_iou_smart_hungarian/
 bytetrack/Smart_Hungarian_iou_state_based/results_pure_smart_hungarian/
 bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/results_trackguard_statebased_twostage_sha/
 
 # =========================
-# Logs / event outputs
-# =========================
-forensic_logs/
-log_terminal/
-trackguard_events/
-trackguard_snapshots/
-*.log
+
+# Model weights / large model files
 
 # =========================
-# Backup / temporary folders
-# =========================
-backup/
-bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/backup/
 
+yolo_data/
 
-trackguard/bytetrack/Smart_Hungarian_iou_state_based/MOT17
-trackguard/bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/MOT17
-yolo_data
-*.json
 *.pt
-*.txt
-.gitignore
+*.pth
+*.onnx
+*.engine
+*.trt
+
+bytetrack/pretrained/
+bytetrack/weights/
+bytetrack/Model/
+bytetrack/models/
+bytetrack/Smart_Hungarian_iou_state_based/models/
+bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/Model/
+
+# =========================
+
+# Datasets
+
+# =========================
+
+bytetrack/datasets/
+bytetrack/Smart_Hungarian_iou_state_based/MOT17/
+bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/MOT17/
+
+trackguard/bytetrack/Smart_Hungarian_iou_state_based/MOT17/
+trackguard/bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/MOT17/
+
+# =========================
+
+# Videos / media
+
+# =========================
+
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+bytetrack/videos/
+test_videos/
+
+# =========================
+
+# Images generated for testing / documentation
+
+# =========================
+
 LTE-TrackGuard_screenshot_27.05.2026.png
 
+# =========================
 
+# Backup / temporary files
+
+# =========================
+
+backup/
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers Based/mot/backup/
+
+# =========================
+# ByteTrack result JSON
+# =========================
+trackguard/bytetrack/results_*.json
+
+# =========================
+# Local / personal settings
+# =========================
+trackguard/bytetrack/Smart_Hungarian_iou_state_based/claude/settings.local.json
+
+# =========================
+# Copied / experimental configs
+# =========================
+trackguard/bytetrack/Smart_Hungarian_iou_state_based/**/optimal_config copy.json
