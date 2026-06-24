@@ -33,6 +33,8 @@ from class_config import (
     WRONG_WAY_VEHICLE_CLASSES,
 )
 
+ENABLE_MOTORCYCLE_FALLEN = False
+
 try:
     from trackguard_dcbot_bridge import report_collision_event
     DCBOT_BRIDGE_AVAILABLE = True
@@ -97,32 +99,59 @@ Model Options:
     )
     
     # Required arguments
-    parser.add_argument('--video', type=str, required=True,
-                       help='Path to input video file')
+    parser.add_argument(
+        '--video', 
+        type=str, 
+        required=True,
+        help='Path to input video file'
+    )
     
     # Model selection
-    parser.add_argument('--model', type=str, default='yolo11n.pt',
-                       help='YOLO model weights (default: yolo11n.pt - fastest)')
+    parser.add_argument(
+        '--model', 
+        type=str, 
+        default='yolo11n.pt',
+        help='YOLO model weights (default: yolo11n.pt - fastest)'
+        )
     
     # Tracker selection
-    parser.add_argument('--tracker', type=str, default='bytetrack',
-                       choices=['bytetrack', 'hungarian'],
-                       help='Tracker to use (default: bytetrack)')
+    parser.add_argument(
+        '--tracker', 
+        type=str, 
+        default='bytetrack',
+        choices=['bytetrack', 'hungarian'],
+        help='Tracker to use (default: bytetrack)'
+    )
 
     # Collision detection tuning
-    parser.add_argument('--conf', type=int, default=70,
-                       help='Collision confidence threshold %% for COLLISION DETECTED (default: 70)')
-    parser.add_argument('--min-hits', type=int, default=5,
-                       help='Minimum track hits before collision check — filters ghost tracks (default: 5)')
+    parser.add_argument(
+        '--conf', 
+        type=int, 
+        default=70,
+        help='Collision confidence threshold %% for COLLISION DETECTED (default: 70)'
+    )
+    parser.add_argument(
+        '--min-hits', 
+        type=int, 
+        default=5,
+        help='Minimum track hits before collision check — filters ghost tracks (default: 5)'
+    )
 
     # Physics mode
-    parser.add_argument('--physics', action='store_true',
-                       help='Enable LTE-TrackGuard physics mode')
+    parser.add_argument(
+        '--physics', 
+        action='store_true',
+        help='Enable LTE-TrackGuard physics mode'
+    )
     
     # Detector selection
-    parser.add_argument('--detect', type=str, default='fallen',
-                       choices=['fallen', 'collision', 'wrong_way', 'turn', 'brake', 'all'],
-                       help='Which behaviour to detect (default: fallen)')
+    parser.add_argument(
+        '--detect',
+        type=str,
+        default='collision',
+        choices=['fallen', 'collision', 'wrong_way', 'turn', 'brake', 'all'],
+        help='Which behaviour to detect (default: collision)'
+    )
     
     # EAGER smoothing
     parser.add_argument('--eager', action='store_true', default=True,
@@ -389,6 +418,9 @@ def visualize_detections(frame: np.ndarray, behaviour_results: Dict,
     # Get current datetime
     current_datetime = datetime.now()
     
+    if not ENABLE_MOTORCYCLE_FALLEN:
+        detection_history['fallen'] = []
+    
     # Determine which detections to show
     detections_to_show = []
     
@@ -409,7 +441,8 @@ def visualize_detections(frame: np.ndarray, behaviour_results: Dict,
                 elif behaviour_type == 'motorcycle_fallen':
                     # Check class_name from detection (if available) or assume motorcycle
                     # FallenDetector already filters for motorcycle, so we can trust it
-                    detections_to_show.append(det)
+                    if ENABLE_MOTORCYCLE_FALLEN:
+                        detections_to_show.append(det)
                 
                 elif behaviour_type == "wrong_way":
                     if is_vehicle_for_wrong_way(det):
@@ -422,13 +455,15 @@ def visualize_detections(frame: np.ndarray, behaviour_results: Dict,
     elif detector_type in behaviour_results:
         detections_to_show = behaviour_results[detector_type]
 
+        if detector_type == "fallen" and not ENABLE_MOTORCYCLE_FALLEN:
+            detections_to_show = []
+
         if detector_type == "wrong_way":
             detections_to_show = [
                 det for det in detections_to_show
                 if is_vehicle_for_wrong_way(det)
             ]
         
-
     # ============================================
     # Draw proximity warnings (objek mendekat, belum collision)
     # ============================================
@@ -1133,7 +1168,8 @@ def draw_alert_banner(frame: np.ndarray, behaviour_results: Dict,
     # Handle FALLEN detections (only if detector_type allows it)
     # ============================================
     fallen_detections = []
-    if detector_type in ['fallen', 'all']:
+
+    if ENABLE_MOTORCYCLE_FALLEN and detector_type in ['fallen', 'all']:
         # Get fallen detections and filter by behaviour_type
         raw_fallen = behaviour_results.get('fallen', [])
         for det in raw_fallen:
@@ -1313,18 +1349,19 @@ def draw_alert_banner(frame: np.ndarray, behaviour_results: Dict,
                 alarm_data = last_detection
 
     elif detector_type == 'fallen':
-        # Only check fallen alarm
-        if detection_history['fallen']:
+        if ENABLE_MOTORCYCLE_FALLEN and detection_history['fallen']:
             last_detection = detection_history['fallen'][-1]
             last_detection_datetime = last_detection[1]
-            time_since_detection = (current_datetime - last_detection_datetime).total_seconds()
-            
-            if time_since_detection <= 15.0:  # 15 seconds
+            time_since_detection = (
+                current_datetime - last_detection_datetime
+            ).total_seconds()
+
+            if time_since_detection <= 15.0:
                 alarm_active = True
                 alarm_type = 'fallen'
                 alarm_data = last_detection
-                
-    else:  # detector_type == 'all'
+
+    elif detector_type == 'all':
         # Priority 1: Check collision alarm
         if detection_history['collision']:
             high_conf_active = False
@@ -1368,13 +1405,19 @@ def draw_alert_banner(frame: np.ndarray, behaviour_results: Dict,
                 alarm_data = last_detection
 
 
-        # Priority 3: Check fallen alarm (only if collision and proximity not active)
-        if not alarm_active and detection_history['fallen']:
+        # Priority 3: Check fallen alarm
+        if (
+            ENABLE_MOTORCYCLE_FALLEN
+            and not alarm_active
+            and detection_history['fallen']
+        ):
             last_detection = detection_history['fallen'][-1]
             last_detection_datetime = last_detection[1]
-            time_since_detection = (current_datetime - last_detection_datetime).total_seconds()
-            
-            if time_since_detection <= 15.0:  # 15 seconds
+            time_since_detection = (
+                current_datetime - last_detection_datetime
+            ).total_seconds()
+
+            if time_since_detection <= 15.0:
                 alarm_active = True
                 alarm_type = 'fallen'
                 alarm_data = last_detection
@@ -1665,7 +1708,7 @@ def draw_detection_summary(frame: np.ndarray, behaviour_results: Dict,
     
     # History log for fallen and collision with timestamp (filter by detector_type)
     has_history = False
-    if detector_type in ['fallen', 'all']:
+    if ENABLE_MOTORCYCLE_FALLEN and detector_type in ['fallen', 'all']:
         has_history = has_history or len(detection_history['fallen']) > 0
     if detector_type in ['collision', 'all']:
         has_history = has_history or len(detection_history['collision']) > 0
@@ -1678,10 +1721,12 @@ def draw_detection_summary(frame: np.ndarray, behaviour_results: Dict,
         
         # Combine histories (filtered by detector_type) and sort by frame_id
         all_history = []
-        if detector_type in ['fallen', 'all']:
+        if ENABLE_MOTORCYCLE_FALLEN and detector_type in ['fallen', 'all']:
             for hist in detection_history['fallen']:
                 frame_id_hist, datetime_obj, track_id = hist
-                all_history.append(('fallen', frame_id_hist, datetime_obj, track_id))
+                all_history.append(
+                    ('fallen', frame_id_hist, datetime_obj, track_id)
+                )
         
         if detector_type in ['collision', 'all']:
             for hist in detection_history['collision']:
@@ -2379,10 +2424,8 @@ def main():
     # Validate video source
     video_src = args.video
 
-    is_stream = (
-        video_src.startswith("rtsp://")
-        or video_src.startswith("http://")
-        or video_src.startswith("https://")
+    is_stream = video_src.lower().startswith(
+        ("rtsp://", "rtmp://", "http://", "https://")
     )
 
     if not is_stream:
@@ -2581,6 +2624,10 @@ def main():
             # Get behaviour results
             behaviour_results = track_manager.behaviour_results if args.physics else {}
             
+            if not ENABLE_MOTORCYCLE_FALLEN and behaviour_results:
+                behaviour_results = dict(behaviour_results)
+                behaviour_results["fallen"] = []
+            
             # Prepare visualization frame early for DCBot snapshots
             snapshot_frame = track_manager.visualize_tracks(
                 frame,
@@ -2661,7 +2708,7 @@ def main():
                                             det["source_video"] = args.video
                                             det["source_video_abs"] = (
                                                 os.path.abspath(args.video)
-                                                if not args.video.startswith(("rtsp://", "http://", "https://"))
+                                                if not args.video.startswith(("rtsp://", "rtmp://", "http://", "https://"))
                                                 else args.video
                                             )
 
@@ -2679,7 +2726,11 @@ def main():
                                         print("[DCBOT BRIDGE] skipped wrong_way: bridge unavailable")
                         
                         # Send fallen motorcycle event to DCBOT bridge
-                        if det_type == 'fallen' and det.get('behaviour_type') == 'motorcycle_fallen':
+                        if (
+                            ENABLE_MOTORCYCLE_FALLEN
+                            and det_type == 'fallen'
+                            and det.get('behaviour_type') == 'motorcycle_fallen'
+                        ):
                             track_id = det.get('track_id', -1)
                             fallen_key = (track_id, frame_id // 30)
 
@@ -2697,7 +2748,7 @@ def main():
                                         det["source_video"] = args.video
                                         det["source_video_abs"] = (
                                             os.path.abspath(args.video)
-                                            if not args.video.startswith(("rtsp://", "http://", "https://"))
+                                            if not args.video.startswith(("rtsp://", "rtmp://", "http://", "https://"))
                                             else args.video
                                         )
 
@@ -2752,7 +2803,7 @@ def main():
                                             det["source_video"] = args.video
                                             det["source_video_abs"] = (
                                                 os.path.abspath(args.video)
-                                                if not args.video.startswith(("rtsp://", "http://", "https://"))
+                                                if not args.video.startswith(("rtsp://", "rtmp://", "http://", "https://"))
                                                 else args.video
                                             )
 

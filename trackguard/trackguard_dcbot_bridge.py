@@ -11,7 +11,10 @@ TRACKGUARD_ROOT = "/home/inf431/Discord_Bot/trackguard"
 DCBOT_ROOT = "/home/inf431/Discord_Bot"
 EVENT_DIR = os.path.join(DCBOT_ROOT, "trackguard_events")
 EVENT_INDEX_FILE = os.path.join(EVENT_DIR, "events.jsonl")
-
+DISABLED_BEHAVIOUR_TYPES = {
+    "motorcycle_fallen",
+    "fallen",
+}
 os.makedirs(EVENT_DIR, exist_ok=True)
 
 
@@ -165,6 +168,38 @@ def _build_payload(event: Dict[str, Any], source_video: Optional[str] = None) ->
 
     return payload
 
+def report_collision_event(
+    event: Dict[str, Any],
+    source_video: Optional[str] = None
+) -> Optional[str]:
+
+    behaviour_type = str(
+        event.get("behaviour_type")
+        or event.get("event")
+        or ""
+    ).lower()
+
+    if behaviour_type in DISABLED_BEHAVIOUR_TYPES:
+        print(
+            f"[DCBOT BRIDGE] disabled event skipped: "
+            f"{behaviour_type}"
+        )
+        return None
+
+    payload = _build_payload(event, source_video=source_video)
+    payload = _json_safe(payload)
+
+    event_id = payload["event_id"]
+    frame_id = _safe_int(payload.get("frame_id", 0))
+    track_a = _safe_int(payload.get("track_id", 0))
+    track_b = _safe_int(payload.get("track_id_secondary", 0))
+
+    behaviour_type = payload.get("behaviour_type", "collision")
+    filename = (
+        f"{behaviour_type}_f{frame_id}_t"
+        f"{track_a}_{track_b}_{event_id[:8]}.json"
+    )
+
 def report_collision_event(event: Dict[str, Any], source_video: Optional[str] = None) -> str:
     payload = _build_payload(event, source_video=source_video)
     payload = _json_safe(payload)
@@ -231,5 +266,8 @@ def _json_safe(obj):
         return _json_safe(obj.tolist())
     return obj
 
-def report_trackguard_event(event: Dict[str, Any], source_video: Optional[str] = None) -> str:
+def report_trackguard_event(
+    event: Dict[str, Any],
+    source_video: Optional[str] = None
+) -> Optional[str]:
     return report_collision_event(event, source_video=source_video)

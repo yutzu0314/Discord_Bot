@@ -98,9 +98,8 @@ trackguard/bytetrack/Smart_Hungarian_iou_state_based/TrackGuard 1.1 - Analyzers 
 yolo_data
 *.json
 *.pt
-log.txt
+*.txt
 .gitignore
 LTE-TrackGuard_screenshot_27.05.2026.png
-log.txt
-log.txt
-*.txt
+
+

@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 from services.violations_service import get_weekly_summary, get_weekly_camera_category_counts
 from cmds.violation_request import ApplyView, ManageView
-
+from playwright.async_api import async_playwright
 
 #os.environ["CUDA_VISIBLE_DEVICES"] = ""
 #os.environ["TORCH_CUDA_ARCH_LIST"] = ""

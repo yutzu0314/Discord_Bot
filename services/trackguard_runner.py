@@ -6,6 +6,11 @@ import time
 import cv2
 import sys
 
+DISABLED_TRACKGUARD_EVENTS = {
+    "motorcycle_fallen",
+    "fallen",
+}
+
 TRACKGUARD_ROOT = "/home/inf431/Discord_Bot/trackguard"
 TRACKGUARD_MAIN = os.path.join(TRACKGUARD_ROOT, "main.py")
 EVENT_DIR = "/home/inf431/Discord_Bot/trackguard_events"
@@ -192,7 +197,10 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
             or ""
         )
 
-        behaviour_type = str(behaviour_type)
+        behaviour_type = str(behaviour_type).lower()
+
+        if behaviour_type in DISABLED_TRACKGUARD_EVENTS:
+            return False
 
         if detect_type == "collision":
             return behaviour_type == "collision"
@@ -204,8 +212,6 @@ async def run_trackguard_process(video_path: str, detect_type: str, on_event=Non
             return behaviour_type in {
                 "collision",
                 "wrong_way",
-                "motorcycle_fallen",
-                "fallen",
                 "turn",
                 "brake",
                 "decelerating",
