@@ -25,7 +25,7 @@ import discord
 import json
 import os
 from discord.ext import commands, tasks
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import matplotlib.pyplot as plt
 from io import BytesIO
 from services.violations_service import get_weekly_summary, get_weekly_camera_category_counts
@@ -92,10 +92,14 @@ async def capture_grafana_dashboard(output_path="grafana_weekly.png"):
 
     return output_path
 
-@tasks.loop(hours=168)  # 24*7，每 7 天執行一次
+@tasks.loop(time=time(hour=0, minute=0)) #每天早上 08:00 執行一次 (設定時間UTC=台灣時間減8小時)
 async def weekly_report_task():
     await bot.wait_until_ready()
 
+    # 只有星期一才送
+    if datetime.now().weekday() != 0: #星期一是0，二是1，以此類推
+        return
+    
     channel = bot.get_channel(WEEKLY_REPORT_CHANNEL_ID)
     if channel is None:
         print("⚠ 找不到每周報表頻道，請確認 WEEKLY_REPORT_CHANNEL_ID 是否正確")
