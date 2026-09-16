@@ -169,3 +169,4 @@ trackguard/bytetrack/Smart_Hungarian_iou_state_based/claude/settings.local.json
 # Copied / experimental configs
 # =========================
 trackguard/bytetrack/Smart_Hungarian_iou_state_based/**/optimal_config copy.json
+log.txt
